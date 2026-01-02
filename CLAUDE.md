@@ -1,4 +1,4 @@
-# Project RandomRPG
+# Project VaudevilleRPG
 
 Game made in telegram bot, which is based on duels between players and between players and bots(in dungeons).
 Dungeons are series of duels between one player and one computer enemy, which ends with a reward.
@@ -11,9 +11,9 @@ Misc item does something special with its ability(heal, counterspell, etc).
 ## Project Plan
 
 ### Phase 1: Foundation
-- [ ] Python project setup (structure, dependencies, config)
-- [ ] PostgreSQL database connection and base models
-- [ ] Telegram bot basic setup (connection, command handling)
+- [x] Python project setup (structure, dependencies, config)
+- [x] PostgreSQL database connection and base models
+- [x] Telegram bot basic setup (connection, command handling)
 
 ### Phase 2: Core Game Systems
 - [ ] Item system (item models, buff types, ability definitions)
@@ -36,27 +36,61 @@ Misc item does something special with its ability(heal, counterspell, etc).
 ## Project Structure
 
 ```
-TODO
+src/vaudeville_rpg/
+├── __init__.py
+├── __main__.py          # Entry point
+├── config.py            # Pydantic settings
+├── bot/
+│   ├── __init__.py
+│   ├── app.py           # Bot setup, dispatcher
+│   └── handlers/
+│       ├── __init__.py
+│       └── common.py    # /start, /help commands
+└── db/
+    ├── __init__.py
+    ├── engine.py        # Async engine, session factory
+    └── models/
+        ├── __init__.py
+        └── base.py      # Base model class
+alembic/                 # Database migrations
+tests/                   # Test files
 ```
 
 ## Running the Server
 
-```
-TODO
+```bash
+# Install dependencies
+pip install -e .
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your BOT_TOKEN and DATABASE_URL
+
+# Run the bot
+python -m vaudeville_rpg
 ```
 
 Environment variables:
-TODO
+- `BOT_TOKEN` - Telegram bot token from @BotFather
+- `DATABASE_URL` - PostgreSQL connection string (e.g., `postgresql+asyncpg://user:pass@localhost:5432/vaudeville_rpg`)
+- `DEBUG` - Enable debug logging (optional, default: false)
 
 ## Running Tests
 
 ```bash
-TODO
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
 ```
 
 ## Implemented Features
 
-TODO
+- [x] Project foundation (aiogram 3.x, SQLAlchemy 2.0, pydantic-settings)
+- [x] Basic bot commands (/start, /help)
+- [x] Database engine with async support
+- [x] Alembic migrations setup
 
 ---
 

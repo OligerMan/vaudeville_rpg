@@ -1,8 +1,8 @@
-# RandomRPG Game Mechanics Wiki
+# VaudevilleRPG Game Mechanics Wiki
 
 ## Overview
 
-RandomRPG is a Telegram bot game based on turn-based duels between players (PvP) and between players and computer enemies (PvE/Dungeons).
+VaudevilleRPG is a Telegram bot game based on turn-based duels between players (PvP) and between players and computer enemies (PvE/Dungeons).
 
 ---
 
