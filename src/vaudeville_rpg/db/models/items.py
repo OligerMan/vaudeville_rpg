@@ -16,9 +16,7 @@ class BuffDefinition(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    buff_type: Mapped[BuffType] = mapped_column(
-        SQLEnum(BuffType, name="buff_type"), nullable=False
-    )
+    buff_type: Mapped[BuffType] = mapped_column(SQLEnum(BuffType, name="buff_type"), nullable=False)
     base_value: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0
     )  # Base magnitude of the buff
@@ -65,9 +63,7 @@ class Item(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    slot: Mapped[ItemSlot] = mapped_column(
-        SQLEnum(ItemSlot, name="item_slot"), nullable=False
-    )
+    slot: Mapped[ItemSlot] = mapped_column(SQLEnum(ItemSlot, name="item_slot"), nullable=False)
     rarity: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1
     )  # 1=common, 2=uncommon, 3=rare, 4=epic, 5=legendary
@@ -78,9 +74,7 @@ class Item(Base, TimestampMixin):
     )
 
     # Relationships
-    ability: Mapped["AbilityDefinition"] = relationship(
-        "AbilityDefinition", back_populates="items"
-    )
+    ability: Mapped["AbilityDefinition"] = relationship("AbilityDefinition", back_populates="items")
     buffs: Mapped[list["ItemBuff"]] = relationship(
         "ItemBuff", back_populates="item", cascade="all, delete-orphan"
     )
@@ -95,15 +89,11 @@ class ItemBuff(Base):
     __tablename__ = "item_buffs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    item_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("items.id"), nullable=False
-    )
+    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("items.id"), nullable=False)
     buff_definition_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("buff_definitions.id"), nullable=False
     )
-    value: Mapped[int] = mapped_column(
-        Integer, nullable=False
-    )  # Actual buff value for this item
+    value: Mapped[int] = mapped_column(Integer, nullable=False)  # Actual buff value for this item
 
     # Relationships
     item: Mapped["Item"] = relationship("Item", back_populates="buffs")
@@ -112,4 +102,4 @@ class ItemBuff(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<ItemBuff(item_id={self.item_id}, buff_id={self.buff_definition_id}, value={self.value})>"
+        return f"<ItemBuff(item={self.item_id}, buff={self.buff_definition_id}, val={self.value})>"
