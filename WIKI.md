@@ -37,6 +37,7 @@ Each player has exactly **3 item slots**:
 ### Item Properties
 - **Buffs** - passive stat modifications (attack items and defense items can have multiple)
 - **Active Ability** - one ability per item that can be used during duels
+- **Rarity** - determines item power level (1=Common, 2=Uncommon, 3=Rare, 4=Epic, 5=Legendary)
 
 ### Item Acquisition
 - **Primary**: Dungeon completion rewards
@@ -80,16 +81,53 @@ TODO: Define base stats, how buffs modify them, health system
 ## Abilities Reference
 
 ### Attack Abilities
-TODO: List all attack abilities with effects
+Attack abilities come from attack items and deal damage to the enemy.
+
+| Effect Type | Description |
+|-------------|-------------|
+| `PHYSICAL_DAMAGE` | Direct physical damage (reduced by armor) |
+| `MAGICAL_DAMAGE` | Direct magical damage (ignores armor) |
+| `BLEED` | Applies damage over time effect |
 
 ### Defense Abilities
-TODO: List all defense abilities with effects
+Defense abilities come from defense items and reduce or prevent damage.
+
+| Effect Type | Description |
+|-------------|-------------|
+| `BLOCK` | Reduces incoming damage for the turn |
+| `EVADE` | Chance to completely avoid damage |
+| `REFLECT` | Returns a portion of damage to the attacker |
 
 ### Misc Abilities
-TODO: List all misc abilities with effects
+Misc abilities come from misc items and provide utility effects.
+
+| Effect Type | Description |
+|-------------|-------------|
+| `HEAL` | Restore health points |
+| `COUNTERSPELL` | Cancel the enemy's ability for the turn |
+| `BUFF_SELF` | Apply a temporary buff to self |
+| `DEBUFF_ENEMY` | Apply a temporary debuff to enemy |
 
 ---
 
 ## Buff Types
 
-TODO: Define all buff types and their effects
+### Offensive Buffs
+| Buff Type | Description |
+|-----------|-------------|
+| `DAMAGE` | Flat bonus to damage dealt |
+| `CRIT_CHANCE` | Percentage chance to deal critical damage |
+| `ARMOR_PENETRATION` | Ignores a portion of enemy armor |
+
+### Defensive Buffs
+| Buff Type | Description |
+|-----------|-------------|
+| `ARMOR` | Flat damage reduction from incoming attacks |
+| `MAX_HEALTH` | Bonus to maximum health points |
+| `EVASION` | Percentage chance to dodge attacks entirely |
+
+### Utility Buffs
+| Buff Type | Description |
+|-----------|-------------|
+| `HEALING_POWER` | Bonus effectiveness to healing effects |
+| `ABILITY_POWER` | General bonus to ability effectiveness |

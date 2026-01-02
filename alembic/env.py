@@ -8,7 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from vaudeville_rpg.config import get_settings
-from vaudeville_rpg.db.models.base import Base
+from vaudeville_rpg.db.models import Base  # noqa: F401 - imports all models
 
 config = context.config
 
