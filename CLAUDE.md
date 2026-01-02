@@ -16,7 +16,7 @@ Misc item does something special with its ability(heal, counterspell, etc).
 - [x] Telegram bot basic setup (connection, command handling)
 
 ### Phase 2: Core Game Systems
-- [ ] Item system (item models, buff types, ability definitions)
+- [x] Item system (item models, buff types, ability definitions)
 - [ ] Player system (player model, stats, inventory management)
 - [ ] Duel engine (turn processing, action resolution, damage calculation)
 
