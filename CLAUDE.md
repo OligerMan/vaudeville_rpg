@@ -79,6 +79,9 @@ Environment variables:
 ## Running Tests
 
 ```bash
+# activate venv
+./venv/Scripts/activate
+
 # Install dev dependencies
 pip install -e ".[dev]"
 
