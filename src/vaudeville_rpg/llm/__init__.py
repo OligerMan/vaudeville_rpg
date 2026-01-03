@@ -1,6 +1,12 @@
 """LLM client abstraction for content generation."""
 
 from .client import LLMClient, LLMResponse, get_llm_client
+from .generators import (
+    EffectTemplateGenerator,
+    ItemTypeGenerator,
+    SettingGenerator,
+    WorldRulesGenerator,
+)
 from .schemas import (
     ActionData,
     AttributeDescription,
@@ -22,6 +28,11 @@ __all__ = [
     "LLMClient",
     "LLMResponse",
     "get_llm_client",
+    # Generators
+    "SettingGenerator",
+    "WorldRulesGenerator",
+    "EffectTemplateGenerator",
+    "ItemTypeGenerator",
     # Schemas
     "ActionData",
     "AttributeDescription",
