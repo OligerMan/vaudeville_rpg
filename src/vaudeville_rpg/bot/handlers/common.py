@@ -23,6 +23,6 @@ async def cmd_help(message: Message) -> None:
     await message.answer(
         "<b>Available Commands:</b>\n\n"
         "/start - Start the bot\n"
-        "/help - Show this help message\n\n"
-        "<i>More commands coming soon...</i>"
+        "/help - Show this help message\n"
+        "/challenge - Reply to a user to challenge them to a duel\n"
     )
