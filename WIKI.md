@@ -8,23 +8,99 @@ VaudevilleRPG is a Telegram bot game based on turn-based duels between players (
 
 ## Duel System
 
+### Duel Model
+
+```
+Duel {
+  id: int
+  setting_id: int              # Which setting this duel is in
+  status: DuelStatus           # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  winner_participant_id: int?  # Which participant won (null if not finished)
+  current_turn: int            # Current turn number (starts at 1)
+}
+```
+
+### DuelParticipant Model
+
+```
+DuelParticipant {
+  id: int
+  duel_id: int                 # Which duel
+  player_id: int               # Which player (can be bot)
+  turn_order: int              # 1 or 2 (for effect ordering)
+  is_ready: bool               # Has submitted action for current turn
+}
+```
+
+### DuelAction Model
+
+Actions are **persisted to database** to survive bot restarts.
+
+```
+DuelAction {
+  id: int
+  duel_id: int
+  participant_id: int
+  turn_number: int             # Which turn this action is for
+  action_type: DuelActionType  # ATTACK, DEFENSE, MISC, SKIP
+  item_id: int?                # Which item was used (null for SKIP)
+}
+```
+
+### Duel Status Flow
+
+```
+PENDING → IN_PROGRESS → COMPLETED
+    ↓         ↓
+    └─────────┴──→ CANCELLED
+```
+
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Duel created, waiting for acceptance (PvP) or start (PvE) |
+| `IN_PROGRESS` | Both players joined, turns being processed |
+| `COMPLETED` | One player won (HP reached 0) |
+| `CANCELLED` | Duel was cancelled before completion |
+
 ### Turn Structure
-- Duels are **turn-based** with **simultaneous action selection**
-- Each turn:
-  1. Both players choose their actions **hidden** from each other
-  2. Once both players have chosen, actions are **revealed**
-  3. Both actions are **applied simultaneously**
+
+Duels are **turn-based** with **simultaneous action selection**:
+
+1. **Action Selection Phase**
+   - Both players choose their actions **hidden** from each other
+   - Each player submits one action (ATTACK, DEFENSE, MISC, or SKIP)
+   - Player marked as `is_ready = true` after submitting
+
+2. **Resolution Phase** (when both ready)
+   - PRE_MOVE effects trigger
+   - Both actions revealed and applied **simultaneously**
+   - PRE_ATTACK → ATTACK → POST_ATTACK effects
+   - PRE_DAMAGE → DAMAGE → POST_DAMAGE effects
+   - POST_MOVE effects trigger
+   - Check win condition (any player HP = 0)
+   - Advance to next turn or end duel
 
 ### Action Types
-Players can use one of their three item abilities per turn:
-- **Attack ability** - from attack item (e.g., sword swing, fire blast)
-- **Defense ability** - from defense item (e.g., shield block, evade)
-- **Misc ability** - from misc item (e.g., heal, counterspell)
+
+| Action | Description |
+|--------|-------------|
+| `ATTACK` | Use attack item ability |
+| `DEFENSE` | Use defense item ability |
+| `MISC` | Use misc item ability |
+| `SKIP` | Do nothing this turn |
 
 ### Combat Resolution
+
 - **Attack** = player-initiated action that can crit/miss
 - **Damage** = raw HP reduction (used by effects like poison, bypasses crit/miss)
 - Win condition: Enemy HP reaches 0
+
+### PvE Enemies (Bots)
+
+Bot enemies reuse the **Player model** with `is_bot = true`:
+- Same combat logic as PvP
+- Bot AI selects actions automatically
+- Can have equipped items like regular players
 
 ---
 

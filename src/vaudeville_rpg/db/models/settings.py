@@ -1,6 +1,7 @@
 """Setting and AttributeDefinition models for per-chat configuration."""
 
-from sqlalchemy import BigInteger, Enum as SQLEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin

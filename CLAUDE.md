@@ -19,7 +19,7 @@ Misc item does something special with its ability(heal, counterspell, etc).
 - [x] Effect system (procedural conditions, actions, effects per setting)
 - [x] Item system (items as effect containers, per-setting)
 - [x] Player system (per-chat players, equipped items, combat state)
-- [ ] Duel engine (turn processing, action resolution, damage calculation)
+- [x] Duel engine (turn processing, action resolution, damage calculation)
 
 ### Phase 3: Game Modes
 - [ ] PvP duel flow (challenge, accept/decline, duel execution, result)

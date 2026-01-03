@@ -1,12 +1,15 @@
 """Database models."""
 
 from .base import Base, TimestampMixin
+from .duels import Duel, DuelAction, DuelParticipant
 from .effects import Action, Condition, Effect
 from .enums import (
     ActionType,
     AttributeCategory,
     ConditionPhase,
     ConditionType,
+    DuelActionType,
+    DuelStatus,
     EffectCategory,
     ItemSlot,
     TargetType,
@@ -24,6 +27,8 @@ __all__ = [
     "AttributeCategory",
     "ConditionPhase",
     "ConditionType",
+    "DuelActionType",
+    "DuelStatus",
     "EffectCategory",
     "ItemSlot",
     "TargetType",
@@ -39,4 +44,8 @@ __all__ = [
     # Players
     "Player",
     "PlayerCombatState",
+    # Duels
+    "Duel",
+    "DuelParticipant",
+    "DuelAction",
 ]
