@@ -23,11 +23,11 @@ Misc item does something special with its ability(heal, counterspell, etc).
 
 ### Phase 3: Game Modes
 - [x] PvP duel flow (challenge, accept/decline, duel execution, result)
-- [ ] Dungeon system (enemy generation, dungeon progression, rewards)
+- [x] Dungeon system (enemy generation, dungeon progression, rewards)
 
 ### Phase 4: Meta Systems
-- [ ] Rating system (rating algorithm, updates after duels)
-- [ ] Leaderboard (ranking display, filtering)
+- [x] Rating system (rating algorithm, updates after duels)
+- [x] Leaderboard (ranking display, filtering)
 
 ### Phase 5: Content & Polish
 - [ ] Initial item/ability content population
@@ -110,9 +110,21 @@ pytest
 - Each meaningful code change should be formalized into a commit. This change may span multiple files and functions, but it should contain only one TODO item.
 - Commit names follow the schema: <type_of_commit>: <description_of_commit>. For example: feat: Added asynchronous querying of the API for the judging
 - Types of commits can be: feat, refactor, fix. feat commits are the commits that add new features, refactor are for refactoring of the code without any changes, fix are for bugfixes.
-- Unit tests should be added after each branch merge.
 - After the feature is finished and tested, the agent should ask whether the branch should be merged into main. If the user agrees, the agent should merge.
 - Branches should never break main -- if feature A breaks the main branch, it should not be merged.
+
+
+## Important agent instructions about testing
+
+- Tests MUST be written for all new functionality before merging a feature branch.
+- Tests should be committed as part of the feature branch, not after merge.
+- Run `pytest` to verify all tests pass before asking to merge.
+- Test coverage should include:
+  - Unit tests for utility functions and calculations
+  - Unit tests for core business logic
+  - Edge cases and error conditions
+- Tests should be placed in the `tests/` directory following the naming convention `test_<module>.py`.
+- All tests must pass before a branch can be merged.
 
 
 ## Most important agent instructions on general productivity

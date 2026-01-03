@@ -12,6 +12,7 @@ from ..db.models.effects import Condition, Effect
 from ..db.models.enums import ConditionType, DuelActionType, DuelStatus, EffectCategory, ItemSlot
 from ..db.models.items import Item
 from ..db.models.players import Player, PlayerCombatState
+from ..utils.rating import RatingChange, calculate_rating_change
 from .effects import EffectData
 from .turn import ItemData, ParticipantAction, TurnResolver
 from .types import CombatState, DuelContext, TurnResult
@@ -25,6 +26,7 @@ class DuelResult:
     message: str
     duel_id: int | None = None
     turn_result: TurnResult | None = None
+    rating_change: RatingChange | None = None
 
 
 class DuelEngine:
@@ -180,9 +182,13 @@ class DuelEngine:
         turn_result = await self._resolve_turn(duel)
 
         # Update duel state based on result
+        rating_change = None
         if turn_result.is_duel_over:
             duel.status = DuelStatus.COMPLETED
             duel.winner_participant_id = turn_result.winner_participant_id
+
+            # Update ratings (PvP only, skip if any participant is a bot)
+            rating_change = await self._update_ratings(duel, turn_result.winner_participant_id)
         else:
             # Advance to next turn
             duel.current_turn += 1
@@ -196,6 +202,7 @@ class DuelEngine:
             message="Turn resolved",
             duel_id=duel_id,
             turn_result=turn_result,
+            rating_change=rating_change,
         )
 
     async def cancel_duel(self, duel_id: int) -> DuelResult:
@@ -455,3 +462,58 @@ class DuelEngine:
         result = await self.session.execute(stmt)
         conditions = result.scalars().all()
         return {c.id: (c.condition_type, c.condition_data) for c in conditions}
+
+    async def _update_ratings(
+        self, duel: Duel, winner_participant_id: int | None
+    ) -> RatingChange | None:
+        """Update player ratings after a duel.
+
+        Only updates ratings for PvP duels (skips if any player is a bot).
+
+        Args:
+            duel: The completed duel
+            winner_participant_id: ID of the winning participant
+
+        Returns:
+            RatingChange if ratings were updated, None otherwise
+        """
+        if winner_participant_id is None:
+            return None
+
+        # Load players to check if any is a bot
+        player_ids = [p.player_id for p in duel.participants]
+        players = await self._load_players(player_ids)
+
+        # Skip rating update for PvE (bot involved)
+        for player in players.values():
+            if player.is_bot:
+                return None
+
+        # Find winner and loser
+        winner_player: Player | None = None
+        loser_player: Player | None = None
+
+        for participant in duel.participants:
+            player = players.get(participant.player_id)
+            if not player:
+                continue
+
+            if participant.id == winner_participant_id:
+                winner_player = player
+            else:
+                loser_player = player
+
+        if not winner_player or not loser_player:
+            return None
+
+        # Calculate rating change
+        rating_change = calculate_rating_change(
+            winner_rating=winner_player.rating,
+            loser_rating=loser_player.rating,
+        )
+
+        # Update ratings
+        winner_player.rating = rating_change.winner_new_rating
+        loser_player.rating = rating_change.loser_new_rating
+
+        return rating_change

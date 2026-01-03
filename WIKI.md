@@ -611,7 +611,73 @@ END   Loop back
    - Actions submitted are final
 
 ### Rating System
-- Players have a **rating** based on duel results
-- **Leaderboard** displays player rankings
 
-TODO: Define rating algorithm (Elo, Glicko, custom)
+Players have a **rating** based on PvP duel results, using the **Elo rating system**.
+
+#### Default Rating
+- All players start with **1000** rating
+- Rating floor is **0** (cannot go negative)
+
+#### Elo Formula
+
+Expected score for player A against player B:
+```
+E_A = 1 / (1 + 10^((R_B - R_A) / 400))
+```
+
+Rating change after match:
+```
+ΔR = K × (S - E)
+```
+Where:
+- `K` = K-factor (rating volatility)
+- `S` = Actual score (1 for win, 0 for loss)
+- `E` = Expected score
+
+#### K-Factor Values
+
+| Condition | K-Factor |
+|-----------|----------|
+| New players (<10 games) | 40 |
+| Standard players | 32 |
+| High-rated players (2000+) | 16 |
+
+#### Rating Updates
+
+- Ratings update **immediately** after PvP duel completion
+- PvE duels (dungeons) do **not** affect rating
+- Both winner and loser ratings update in single transaction
+
+#### Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/profile` | Show your stats, rating, and rank |
+| `/leaderboard` | Show top 10 players by rating |
+
+#### Profile Display
+
+```
+PlayerName
+
+Rating: 1234 (#5)
+HP: 100
+SP: 50
+
+Equipped Items:
+  Attack: Sword of Fire
+  Defense: Iron Shield
+  Misc: Healing Potion
+```
+
+#### Leaderboard Display
+
+```
+Leaderboard
+
+1. 🥇 TopPlayer - 1523
+2. 🥈 SecondBest - 1456
+3. 🥉 ThirdPlace - 1398
+4. FourthPlace - 1234
+...
+```
