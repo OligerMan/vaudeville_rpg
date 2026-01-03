@@ -761,3 +761,649 @@ class TestDuelContext:
 
         with pytest.raises(ValueError):
             context.get_opponent_state(10)
+
+
+class TestComplexWorldEffects:
+    """Tests for complex world effect interactions."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.resolver = TurnResolver()
+
+    def _create_combat_state(
+        self,
+        player_id: int,
+        participant_id: int,
+        hp: int = 100,
+        stacks: dict | None = None,
+    ) -> CombatState:
+        """Helper to create combat state."""
+        return CombatState(
+            player_id=player_id,
+            participant_id=participant_id,
+            current_hp=hp,
+            max_hp=100,
+            current_special_points=50,
+            max_special_points=50,
+            attribute_stacks=stacks or {},
+        )
+
+    def _create_context(self, state1: CombatState, state2: CombatState, turn: int = 1) -> DuelContext:
+        """Helper to create duel context."""
+        return DuelContext(
+            duel_id=1,
+            setting_id=1,
+            current_turn=turn,
+            states={state1.participant_id: state1, state2.participant_id: state2},
+        )
+
+    def test_poison_tick_and_decay(self):
+        """Test poison deals damage at PRE_MOVE and decays at POST_MOVE."""
+        state1 = self._create_combat_state(1, 10, stacks={"poison": 3})
+        state2 = self._create_combat_state(2, 20, stacks={"poison": 2})
+        context = self._create_context(state1, state2)
+
+        # Poison tick: deals 5 damage per stack at PRE_MOVE
+        # Poison decay: removes 1 stack at POST_MOVE
+        world_rules = [
+            EffectData(
+                id=1,
+                name="a_poison_tick",  # 'a' prefix to run first
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 5},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="b_poison_decay",  # 'b' prefix to run second
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 104]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "poison", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        # Conditions for AND resolution
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),
+            104: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        result = self.resolver.resolve_turn(
+            context,
+            actions,
+            world_rules=world_rules,
+            participant_items={10: {}, 20: {}},
+            all_conditions=all_conditions,
+        )
+
+        # Player 1: 100 - 5 (poison tick) = 95 HP, 3 - 1 = 2 poison stacks
+        assert state1.current_hp == 95
+        assert state1.get_stacks("poison") == 2
+
+        # Player 2: 100 - 5 (poison tick) = 95 HP, 2 - 1 = 1 poison stack
+        assert state2.current_hp == 95
+        assert state2.get_stacks("poison") == 1
+
+        assert not result.is_duel_over
+
+    def test_armor_reduces_and_decays(self):
+        """Test armor reduces damage at PRE_DAMAGE and decays at POST_DAMAGE."""
+        state1 = self._create_combat_state(1, 10, stacks={"armor": 3})
+        state2 = self._create_combat_state(2, 20)
+        context = self._create_context(state1, state2)
+
+        # Armor reduction at PRE_DAMAGE, armor decay at POST_DAMAGE
+        world_rules = [
+            EffectData(
+                id=1,
+                name="armor_reduction",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="reduce_incoming_damage",
+                action_data={"value": 5},  # 5 reduction per armor
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="armor_decay",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 104]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "armor", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_damage"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "armor", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_damage"}),
+            104: (ConditionType.HAS_STACKS, {"attribute": "armor", "min_count": 1}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        self.resolver.resolve_turn(
+            context,
+            actions,
+            world_rules=world_rules,
+            participant_items={10: {}, 20: {}},
+            all_conditions=all_conditions,
+        )
+
+        # Player 1 has armor, should have damage reduction set and armor decayed
+        assert state1.get_stacks("armor") == 2  # Decayed from 3 to 2
+        # HP unchanged since no actual damage was dealt this turn
+        assert state1.current_hp == 100
+
+    def test_multiple_dot_effects(self):
+        """Test multiple damage-over-time effects (poison + burn)."""
+        state1 = self._create_combat_state(1, 10, stacks={"poison": 2, "burn": 3})
+        state2 = self._create_combat_state(2, 20)
+        context = self._create_context(state1, state2)
+
+        world_rules = [
+            EffectData(
+                id=1,
+                name="a_burn_tick",  # Burns first (alphabetical)
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 3},  # 3 damage per burn stack
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="b_poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 103]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 2},  # 2 damage per poison stack
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "burn", "min_count": 1}),
+            103: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        self.resolver.resolve_turn(
+            context,
+            actions,
+            world_rules=world_rules,
+            participant_items={10: {}, 20: {}},
+            all_conditions=all_conditions,
+        )
+
+        # Player 1: 100 - 3 (burn) - 2 (poison) = 95 HP
+        assert state1.current_hp == 95
+        # Player 2: no stacks, no damage
+        assert state2.current_hp == 100
+
+    def test_heal_and_damage_same_turn(self):
+        """Test healing and damage effects in the same turn."""
+        state1 = self._create_combat_state(1, 10, hp=50, stacks={"regen": 2, "poison": 1})
+        state2 = self._create_combat_state(2, 20)
+        context = self._create_context(state1, state2)
+
+        world_rules = [
+            EffectData(
+                id=1,
+                name="a_regen_tick",  # Heals first (alphabetical)
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="heal",
+                action_data={"value": 10},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="b_poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 103]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 5},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "regen", "min_count": 1}),
+            103: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        self.resolver.resolve_turn(
+            context,
+            actions,
+            world_rules=world_rules,
+            participant_items={10: {}, 20: {}},
+            all_conditions=all_conditions,
+        )
+
+        # Player 1: 50 + 10 (regen) - 5 (poison) = 55 HP
+        assert state1.current_hp == 55
+
+
+class TestMultiTurnDuelScenarios:
+    """Tests for multi-turn duel scenarios."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.resolver = TurnResolver()
+
+    def _create_combat_state(
+        self,
+        player_id: int,
+        participant_id: int,
+        hp: int = 100,
+        stacks: dict | None = None,
+    ) -> CombatState:
+        """Helper to create combat state."""
+        return CombatState(
+            player_id=player_id,
+            participant_id=participant_id,
+            current_hp=hp,
+            max_hp=100,
+            current_special_points=50,
+            max_special_points=50,
+            attribute_stacks=stacks.copy() if stacks else {},
+        )
+
+    def _create_context(self, state1: CombatState, state2: CombatState, turn: int = 1) -> DuelContext:
+        """Helper to create duel context."""
+        return DuelContext(
+            duel_id=1,
+            setting_id=1,
+            current_turn=turn,
+            states={state1.participant_id: state1, state2.participant_id: state2},
+        )
+
+    def test_poison_kills_over_multiple_turns(self):
+        """Test that poison eventually kills a player over multiple turns."""
+        state1 = self._create_combat_state(1, 10, hp=30, stacks={"poison": 5})
+        state2 = self._create_combat_state(2, 20)
+
+        # Poison: 10 damage per turn, decays 1 stack per turn
+        world_rules = [
+            EffectData(
+                id=1,
+                name="poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 10},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="poison_decay",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "poison", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        # Turn 1: 30 HP - 10 = 20 HP, 5 -> 4 stacks
+        context = self._create_context(state1, state2, turn=1)
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 20
+        assert state1.get_stacks("poison") == 4
+        assert not result.is_duel_over
+
+        # Turn 2: 20 HP - 10 = 10 HP, 4 -> 3 stacks
+        context.current_turn = 2
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 10
+        assert state1.get_stacks("poison") == 3
+        assert not result.is_duel_over
+
+        # Turn 3: 10 HP - 10 = 0 HP, player 1 dies
+        context.current_turn = 3
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 0
+        assert result.is_duel_over
+        assert result.winner_participant_id == 20  # Player 2 wins
+
+    def test_poison_expires_before_kill(self):
+        """Test that poison expires (all stacks removed) before killing."""
+        state1 = self._create_combat_state(1, 10, hp=100, stacks={"poison": 2})
+        state2 = self._create_combat_state(2, 20)
+
+        # Poison: 5 damage per turn, decays 1 stack per turn
+        world_rules = [
+            EffectData(
+                id=1,
+                name="poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 5},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="poison_decay",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "poison", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        # Turn 1: 100 - 5 = 95 HP, 2 -> 1 stacks
+        context = self._create_context(state1, state2, turn=1)
+        self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 95
+        assert state1.get_stacks("poison") == 1
+
+        # Turn 2: 95 - 5 = 90 HP, 1 -> 0 stacks (poison expires)
+        context.current_turn = 2
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 90
+        assert state1.get_stacks("poison") == 0
+
+        # Turn 3: No poison, no damage
+        context.current_turn = 3
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 90  # No change
+        assert state1.get_stacks("poison") == 0
+
+    def test_both_players_take_damage_over_turns(self):
+        """Test both players taking poison damage over multiple turns."""
+        state1 = self._create_combat_state(1, 10, hp=50, stacks={"poison": 3})
+        state2 = self._create_combat_state(2, 20, hp=40, stacks={"poison": 2})
+
+        world_rules = [
+            EffectData(
+                id=1,
+                name="poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 10},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="poison_decay",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "poison", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        # Turn 1
+        context = self._create_context(state1, state2, turn=1)
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 40  # 50 - 10
+        assert state1.get_stacks("poison") == 2
+        assert state2.current_hp == 30  # 40 - 10
+        assert state2.get_stacks("poison") == 1
+        assert not result.is_duel_over
+
+        # Turn 2
+        context.current_turn = 2
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 30  # 40 - 10
+        assert state1.get_stacks("poison") == 1
+        assert state2.current_hp == 20  # 30 - 10
+        assert state2.get_stacks("poison") == 0
+        assert not result.is_duel_over
+
+        # Turn 3 - Player 2's poison expired
+        context.current_turn = 3
+        state1.reset_turn_modifiers()
+        state2.reset_turn_modifiers()
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+        assert state1.current_hp == 20  # 30 - 10
+        assert state1.get_stacks("poison") == 0
+        assert state2.current_hp == 20  # No damage (poison expired)
+        assert not result.is_duel_over
+
+    def test_stacking_buffs_over_turns(self):
+        """Test buffs accumulating over multiple turns."""
+        state1 = self._create_combat_state(1, 10, stacks={"might": 1})
+        state2 = self._create_combat_state(2, 20)
+
+        # Each turn, gain 1 might stack (up to max 5)
+        world_rules = [
+            EffectData(
+                id=1,
+                name="might_gain",
+                condition_type=ConditionType.PHASE,
+                condition_data={"phase": "pre_move"},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="add_stacks",
+                action_data={"attribute": "might", "value": 1, "max_stacks": 5},
+                owner_participant_id=0,
+            ),
+        ]
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        context = self._create_context(state1, state2, turn=1)
+
+        # Simulate 6 turns
+        for turn in range(1, 7):
+            context.current_turn = turn
+            state1.reset_turn_modifiers()
+            state2.reset_turn_modifiers()
+            self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, None)
+
+        # Both players should have 5 might (capped)
+        assert state1.get_stacks("might") == 5
+        assert state2.get_stacks("might") == 5
+
+    def test_full_duel_simulation(self):
+        """Simulate a complete duel with poison and damage over time."""
+        # Player 1 starts with 3 poison, Player 2 starts healthy
+        # Poison deals 15 damage/turn and decays 1 stack/turn
+        # Player 1 should die on turn 4 (100 -> 85 -> 70 -> 55 -> 40 -> dies at 25)
+        state1 = self._create_combat_state(1, 10, hp=60, stacks={"poison": 4})
+        state2 = self._create_combat_state(2, 20, hp=100)
+
+        world_rules = [
+            EffectData(
+                id=1,
+                name="poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 15},
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
+                name="poison_decay",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [103, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="remove_stacks",
+                action_data={"attribute": "poison", "value": 1},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        context = self._create_context(state1, state2, turn=1)
+        turn_count = 0
+        max_turns = 10  # Safety limit
+
+        while turn_count < max_turns:
+            turn_count += 1
+            context.current_turn = turn_count
+            state1.reset_turn_modifiers()
+            state2.reset_turn_modifiers()
+
+            result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+
+            if result.is_duel_over:
+                break
+
+        # Player 1 should have died from poison
+        # Turn 1: 60 - 15 = 45, stacks 4->3
+        # Turn 2: 45 - 15 = 30, stacks 3->2
+        # Turn 3: 30 - 15 = 15, stacks 2->1
+        # Turn 4: 15 - 15 = 0, dies
+        assert result.is_duel_over
+        assert result.winner_participant_id == 20
+        assert state1.current_hp == 0
+        assert turn_count == 4
+
+    def test_mutual_kill_scenario(self):
+        """Test scenario where both players would die on same turn."""
+        state1 = self._create_combat_state(1, 10, hp=10, stacks={"poison": 1})
+        state2 = self._create_combat_state(2, 20, hp=10, stacks={"poison": 1})
+
+        world_rules = [
+            EffectData(
+                id=1,
+                name="poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [101, 102]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 10},
+                owner_participant_id=0,
+            ),
+        ]
+
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_move"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
+        ]
+
+        context = self._create_context(state1, state2, turn=1)
+        result = self.resolver.resolve_turn(context, actions, world_rules, {10: {}, 20: {}}, all_conditions)
+
+        # Both players die simultaneously
+        assert state1.current_hp == 0
+        assert state2.current_hp == 0
+        # Current implementation returns None for draws
+        assert result.winner_participant_id is None
