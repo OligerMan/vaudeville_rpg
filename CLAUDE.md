@@ -16,7 +16,8 @@ Misc item does something special with its ability(heal, counterspell, etc).
 - [x] Telegram bot basic setup (connection, command handling)
 
 ### Phase 2: Core Game Systems
-- [x] Item system (item models, buff types, ability definitions)
+- [x] Effect system (procedural conditions, actions, effects per setting)
+- [x] Item system (items as effect containers, per-setting)
 - [ ] Player system (player model, stats, inventory management)
 - [ ] Duel engine (turn processing, action resolution, damage calculation)
 
@@ -91,6 +92,9 @@ pytest
 - [x] Basic bot commands (/start, /help)
 - [x] Database engine with async support
 - [x] Alembic migrations setup
+- [x] Procedural effect system (Settings, Conditions, Actions, Effects)
+- [x] Per-chat settings with world rules
+- [x] Item system with effect containers
 
 ---
 
