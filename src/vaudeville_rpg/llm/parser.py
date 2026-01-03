@@ -13,7 +13,7 @@ from ..db.models.enums import (
     ItemSlot,
     TargetType,
 )
-from ..db.models.items import Item, ItemEffect
+from ..db.models.items import Item
 from .schemas import (
     EffectTemplate,
     GeneratedWorldRules,
@@ -224,7 +224,7 @@ class ItemParser:
 
             # Create effects for each action
             for i, action_def in enumerate(actions):
-                await self._create_item_effect(setting_id, item.id, i, action_def)
+                await self._create_item_effect(setting_id, item.id, slot, i, action_def)
 
             return ParseResult(
                 success=True,
@@ -242,6 +242,7 @@ class ItemParser:
         self,
         setting_id: int,
         item_id: int,
+        item_slot: str,
         priority: int,
         action_def: dict,
     ) -> None:
@@ -264,25 +265,37 @@ class ItemParser:
         self.session.add(action)
         await self.session.flush()
 
-        # Create effect (no condition for item effects - triggers on use)
+        # Create condition based on item slot
+        # Attack items trigger on PRE_ATTACK, defense on PRE_DAMAGE, misc on PRE_MOVE
+        phase_map = {
+            "attack": "pre_attack",
+            "defense": "pre_damage",
+            "misc": "pre_move",
+        }
+        phase = phase_map.get(item_slot, "pre_move")
+
+        condition = Condition(
+            setting_id=setting_id,
+            name=f"item_{item_id}_condition_{priority}",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": phase},
+        )
+        self.session.add(condition)
+        await self.session.flush()
+
+        # Create effect with item_id set
         effect = Effect(
             setting_id=setting_id,
             name=f"item_{item_id}_effect_{priority}",
             description=f"{action_def.get('action_type', 'effect')}",
-            condition_id=None,
+            condition_id=condition.id,
             action_id=action.id,
+            target=target,
             category=EffectCategory.ITEM_EFFECT,
+            item_id=item_id,
         )
         self.session.add(effect)
         await self.session.flush()
-
-        # Link effect to item
-        item_effect = ItemEffect(
-            item_id=item_id,
-            effect_id=effect.id,
-            priority=priority,
-        )
-        self.session.add(item_effect)
 
     async def create_from_templates(
         self,
