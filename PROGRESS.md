@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `master`
+**Branch:** `feature/pvp-duel-flow` (ready to merge)
 **Last Updated:** 2026-01-03
-**Last Commit:** `7534ade` - feat: Add venv activation instruction to CLAUDE.md
+**Last Commit:** `9ec170d` - feat: Document PvP flow in WIKI.md
 
 ### Completed Phases
 
@@ -19,15 +19,42 @@ This file tracks development progress to restore context between sessions.
 
 ### Current Phase
 
-**Phase 3: Game Modes** (Not Started)
-- [ ] PvP duel flow (challenge, accept/decline, duel execution, result)
+**Phase 3: Game Modes** (In Progress)
+- [x] PvP duel flow (challenge, accept/decline, duel execution, result)
 - [ ] Dungeon system (enemy generation, dungeon progression, rewards)
 
 ---
 
 ## Recent Session Summary
 
-### Session: 2026-01-03
+### Session: 2026-01-03 (Part 2)
+
+**Completed:** PvP Duel Flow Implementation
+
+#### What Was Done
+1. Created `feature/pvp-duel-flow` branch
+2. Added service layer (`src/vaudeville_rpg/services/`):
+   - `PlayerService`: get_or_create_player, get_or_create_setting
+   - `DuelService`: create_challenge, accept/decline, submit_action
+
+3. Added bot handlers (`src/vaudeville_rpg/bot/handlers/duels.py`):
+   - `/challenge` command (reply to user)
+   - Accept/Decline inline buttons
+   - Action selection (Attack/Defense/Misc/Skip)
+   - Duel state display with HP, SP, stacks
+   - Turn result formatting
+
+4. Updated WIKI.md with PvP flow documentation
+
+#### Key Files Added
+- `src/vaudeville_rpg/services/__init__.py`
+- `src/vaudeville_rpg/services/players.py`
+- `src/vaudeville_rpg/services/duels.py`
+- `src/vaudeville_rpg/bot/handlers/duels.py`
+
+---
+
+### Session: 2026-01-03 (Part 1)
 
 **Completed:** Duel Engine Implementation
 
