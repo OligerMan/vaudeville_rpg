@@ -24,7 +24,7 @@ class TestGeneratedSettingParsing:
     """Tests for parsing GeneratedSetting from JSON."""
 
     FANTASY_SETTING_JSON = """{
-        "broad_description": "In the realm of Eldergrove, ancient magic flows through crystalline ley lines that crisscross the land. Warriors harness elemental forces while shadowy assassins wield poisons distilled from forbidden flora. The eternal conflict between light and darkness shapes every battle.",
+        "broad_description": "In the realm of Eldergrove, ancient magic flows through ley lines.",
         "special_points": {
             "name": "mana",
             "display_name": "Mana",
@@ -54,7 +54,7 @@ class TestGeneratedSettingParsing:
     }"""
 
     SCIFI_SETTING_JSON = """{
-        "broad_description": "The year is 3047. Humanity has spread across the galaxy, and battles are fought with plasma weapons and neural implants. Nanobots repair damage while EMP bursts disable enemy systems.",
+        "broad_description": "The year is 3047. Humanity has spread across the galaxy.",
         "special_points": {
             "name": "energy",
             "display_name": "Energy Cells",

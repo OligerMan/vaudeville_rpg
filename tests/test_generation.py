@@ -357,8 +357,9 @@ class TestItemFactory:
                 assert regen_action.attribute == "regen"
 
             # Verify name includes effect prefix
-            assert any(prefix in item.name for prefix in ["Poisonous", "Fortified", "Regenerating"]), \
+            assert any(prefix in item.name for prefix in ["Poisonous", "Fortified", "Regenerating"]), (
                 f"Item name '{item.name}' missing effect prefix"
+            )
 
     def test_create_random_item_with_specific_rarity_has_effects(self):
         """Verify create_random_item with specific rarity includes properly scaled effects."""

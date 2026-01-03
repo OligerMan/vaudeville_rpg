@@ -110,10 +110,10 @@ class TestRatingChange:
         """Should return RatingChange dataclass."""
         result = calculate_rating_change(1000, 1000)
         assert isinstance(result, RatingChange)
-        assert hasattr(result, 'winner_new_rating')
-        assert hasattr(result, 'loser_new_rating')
-        assert hasattr(result, 'winner_change')
-        assert hasattr(result, 'loser_change')
+        assert hasattr(result, "winner_new_rating")
+        assert hasattr(result, "loser_new_rating")
+        assert hasattr(result, "winner_change")
+        assert hasattr(result, "loser_change")
 
 
 class TestKFactor:
