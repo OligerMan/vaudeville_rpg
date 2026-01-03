@@ -22,7 +22,7 @@ Misc item does something special with its ability(heal, counterspell, etc).
 - [x] Duel engine (turn processing, action resolution, damage calculation)
 
 ### Phase 3: Game Modes
-- [ ] PvP duel flow (challenge, accept/decline, duel execution, result)
+- [x] PvP duel flow (challenge, accept/decline, duel execution, result)
 - [ ] Dungeon system (enemy generation, dungeon progression, rewards)
 
 ### Phase 4: Meta Systems

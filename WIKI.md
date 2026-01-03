@@ -405,10 +405,78 @@ TODO: Define difficulty levels, enemy scaling, reward tiers
 
 ## PvP System
 
-### Challenge System
-- PvP duels are initiated via **direct challenges**
-- One player challenges another
-- Challenged player accepts or declines
+### Challenge Flow
+
+```
+/challenge (reply to user)
+        ↓
+   [PENDING Duel Created]
+        ↓
+    ┌───┴───┐
+    ↓       ↓
+ Accept   Decline
+    ↓       ↓
+ [START]  [CANCEL]
+    ↓
+ Action Selection (both players)
+    ↓
+ Turn Resolution
+    ↓
+ ┌──┴──┐
+ ↓     ↓
+Win?  Next Turn
+ ↓     ↓
+END   Loop back
+```
+
+### Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/challenge` | Reply to a user's message to challenge them |
+| `/help` | Show available commands |
+
+### Inline Buttons
+
+**Challenge Response:**
+- ⚔️ Accept - Start the duel
+- ❌ Decline - Cancel the duel
+
+**Action Selection:**
+- ⚔️ Attack - Use attack item ability
+- 🛡️ Defense - Use defense item ability
+- ✨ Misc - Use misc item ability
+- ⏭️ Skip - Do nothing this turn
+
+### Duel State Display
+
+```
+⚔️ Duel - Turn 3
+
+✅ Player1
+   ❤️ 75 HP | 💙 30 SP
+   📊 armor: 2
+
+⏳ Player2
+   ❤️ 60 HP | 💙 45 SP
+   📊 poison: 3
+
+📜 Turn 2 Results:
+• Dealt 15 damage
+• Added 3 poison stacks
+```
+
+### Validation Rules
+
+1. **Challenge Validation:**
+   - Cannot challenge yourself
+   - Cannot challenge bots
+   - Cannot challenge if either player is in an active duel
+
+2. **Action Validation:**
+   - Only duel participants can submit actions
+   - Each player can only submit once per turn
+   - Actions submitted are final
 
 ### Rating System
 - Players have a **rating** based on duel results
