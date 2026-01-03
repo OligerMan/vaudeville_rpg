@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `feature/dungeon-system` (ready to merge)
+**Branch:** `feature/rating-system` (ready to merge)
 **Last Updated:** 2026-01-03
-**Last Commit:** `c51ce2f` - feat: Update WIKI.md with dungeon system documentation
+**Last Commit:** `a7356f7` - feat: Document rating system in WIKI.md
 
 ### Completed Phases
 
@@ -17,16 +17,48 @@ This file tracks development progress to restore context between sessions.
 | Phase 1: Foundation | Done | Python setup, PostgreSQL, Telegram bot |
 | Phase 2: Core Game Systems | Done | Effect, Item, Player, Duel engine |
 | Phase 3: Game Modes | Done | PvP duels, Dungeon system |
+| Phase 4: Meta Systems | Done | Rating system, Leaderboard |
 
 ### Current Phase
 
-**Phase 4: Meta Systems** (Not Started)
-- [ ] Rating system (rating algorithm, updates after duels)
-- [ ] Leaderboard (ranking display, filtering)
+**Phase 5: Content & Polish** (Not Started)
+- [ ] Initial item/ability content population
+- [ ] Balance tuning
+- [ ] Telegram UI/UX improvements
 
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-03 (Part 4)
+
+**Completed:** Rating System and Leaderboard
+
+#### What Was Done
+1. Created `feature/rating-system` branch
+2. Added Elo rating calculator (`src/vaudeville_rpg/utils/rating.py`):
+   - Expected score calculation
+   - Rating change calculation
+   - Dynamic K-factor based on rating/experience
+
+3. Integrated rating updates in DuelEngine:
+   - Updates ratings on PvP duel completion
+   - Skips rating changes for PvE (bot involved)
+
+4. Added bot commands:
+   - `/profile` - shows player stats, rating, rank, equipped items
+   - `/leaderboard` - shows top 10 players by rating
+   - Updated `/help` with all commands
+
+5. Updated WIKI.md with rating system documentation
+
+#### Key Files Added/Modified
+- `src/vaudeville_rpg/utils/__init__.py` (new)
+- `src/vaudeville_rpg/utils/rating.py` (new)
+- `src/vaudeville_rpg/engine/duel.py` (rating integration)
+- `src/vaudeville_rpg/bot/handlers/common.py` (profile/leaderboard)
+
+---
 
 ### Session: 2026-01-03 (Part 3)
 
@@ -157,19 +189,21 @@ ConditionEvaluator + ActionExecutor
 
 ## Next Steps
 
-### Immediate (Phase 4)
-1. **Rating System**
-   - Rating algorithm (Elo or similar)
-   - Rating updates after duels
-   - Rating display in profile
+### Immediate (Phase 5)
+1. **Item Content**
+   - Create initial item templates
+   - Procedural item generation
+   - Item drop/reward system
 
-2. **Leaderboard**
-   - `/leaderboard` command
-   - Top players display
-   - Filtering options
+2. **Balance Tuning**
+   - Adjust HP/SP values
+   - Effect damage/healing values
+   - Dungeon difficulty scaling
 
-### Future Phases
-- Phase 5: Content population, Balance, UI polish
+3. **UI/UX Polish**
+   - Better duel state display
+   - Progress messages
+   - Error handling improvements
 
 ---
 
@@ -199,7 +233,8 @@ python -m vaudeville_rpg
 | Branch | Status | Description |
 |--------|--------|-------------|
 | `master` | Active | Main development branch |
-| `feature/dungeon-system` | Ready | Dungeon system (PvE) |
+| `feature/rating-system` | Ready | Rating system and leaderboard |
+| `feature/dungeon-system` | Merged | Dungeon system (PvE) |
 | `feature/pvp-duel-flow` | Merged | PvP duel handlers |
 | `feature/duel-engine` | Merged | Duel engine implementation |
 | `feature/player-system` | Merged | Player models and combat state |
