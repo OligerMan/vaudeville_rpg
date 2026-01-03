@@ -1,6 +1,7 @@
 """LLM client abstraction for content generation."""
 
 from .client import LLMClient, LLMResponse, get_llm_client
+from .factory import GeneratedAction, GeneratedItem, ItemFactory, Rarity
 from .generators import (
     EffectTemplateGenerator,
     ItemTypeGenerator,
@@ -28,6 +29,11 @@ __all__ = [
     "LLMClient",
     "LLMResponse",
     "get_llm_client",
+    # Factory
+    "ItemFactory",
+    "GeneratedItem",
+    "GeneratedAction",
+    "Rarity",
     # Generators
     "SettingGenerator",
     "WorldRulesGenerator",
