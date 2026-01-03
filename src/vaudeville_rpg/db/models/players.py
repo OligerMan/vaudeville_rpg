@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import BigInteger, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,6 +34,9 @@ class Player(Base, TimestampMixin):
 
     # PvP rating
     rating: Mapped[int] = mapped_column(Integer, nullable=False, default=1000)
+
+    # Bot flag for PvE enemies
+    is_bot: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Equipped items (one per slot, nullable = no item equipped)
     attack_item_id: Mapped[int | None] = mapped_column(
@@ -80,9 +83,9 @@ class PlayerCombatState(Base, TimestampMixin):
     player_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("players.id"), nullable=False, index=True
     )
-    # duel_id will be added when we implement the Duel model
-    # For now, we'll use a nullable integer that can reference future duels
-    duel_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    duel_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("duels.id"), nullable=False, index=True
+    )
 
     # Current stats
     current_hp: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -95,11 +98,13 @@ class PlayerCombatState(Base, TimestampMixin):
 
     # Relationships
     player: Mapped["Player"] = relationship("Player", back_populates="combat_states")
+    duel: Mapped["Duel"] = relationship("Duel", back_populates="combat_states")
 
     def __repr__(self) -> str:
         return f"<PlayerCombatState(player={self.player_id}, hp={self.current_hp})>"
 
 
 # Forward references for type hints
+from .duels import Duel  # noqa: E402, F401
 from .items import Item  # noqa: E402, F401
 from .settings import Setting  # noqa: E402, F401
