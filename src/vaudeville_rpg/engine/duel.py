@@ -463,9 +463,7 @@ class DuelEngine:
         conditions = result.scalars().all()
         return {c.id: (c.condition_type, c.condition_data) for c in conditions}
 
-    async def _update_ratings(
-        self, duel: Duel, winner_participant_id: int | None
-    ) -> RatingChange | None:
+    async def _update_ratings(self, duel: Duel, winner_participant_id: int | None) -> RatingChange | None:
         """Update player ratings after a duel.
 
         Only updates ratings for PvP duels (skips if any player is a bot).

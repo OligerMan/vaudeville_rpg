@@ -318,6 +318,64 @@ class TestItemFactory:
         assert item.slot in ["attack", "defense", "misc"]
         assert 1 <= item.rarity <= 5
 
+    def test_create_random_item_has_effects(self):
+        """Verify create_random_item includes effects, not just slot and rarity."""
+        factory = self._create_factory()
+
+        # Test multiple times to cover all slots
+        for _ in range(10):
+            item = factory.create_random_item()
+
+            # Item must have actions (base action + effect actions)
+            assert len(item.actions) >= 1, f"Item {item.name} has no actions"
+
+            # Check that effects are properly included based on slot
+            if item.slot == "attack":
+                # Should have base attack + poison effect
+                action_types = [a.action_type for a in item.actions]
+                assert "attack" in action_types, "Attack item missing base attack action"
+                assert "add_stacks" in action_types, "Attack item missing poison effect"
+                # Verify poison attribute is set
+                poison_action = next(a for a in item.actions if a.action_type == "add_stacks")
+                assert poison_action.attribute == "poison"
+
+            elif item.slot == "defense":
+                # Should have base armor + fortify effect
+                action_types = [a.action_type for a in item.actions]
+                assert "add_stacks" in action_types, "Defense item missing armor actions"
+                # Should have armor from both base and effect
+                armor_actions = [a for a in item.actions if a.attribute == "armor"]
+                assert len(armor_actions) >= 1, "Defense item missing armor attribute"
+
+            elif item.slot == "misc":
+                # Should have base heal + regenerate effect
+                action_types = [a.action_type for a in item.actions]
+                assert "heal" in action_types, "Misc item missing base heal action"
+                assert "add_stacks" in action_types, "Misc item missing regen effect"
+                # Verify regen attribute is set
+                regen_action = next(a for a in item.actions if a.action_type == "add_stacks")
+                assert regen_action.attribute == "regen"
+
+            # Verify name includes effect prefix
+            assert any(prefix in item.name for prefix in ["Poisonous", "Fortified", "Regenerating"]), (
+                f"Item name '{item.name}' missing effect prefix"
+            )
+
+    def test_create_random_item_with_specific_rarity_has_effects(self):
+        """Verify create_random_item with specific rarity includes properly scaled effects."""
+        factory = self._create_factory()
+
+        # Test with each rarity level
+        for rarity in [Rarity.COMMON, Rarity.UNCOMMON, Rarity.RARE, Rarity.EPIC, Rarity.LEGENDARY]:
+            item = factory.create_random_item(rarity=rarity)
+
+            assert item.rarity == rarity.value
+            assert len(item.actions) >= 1, f"Item with rarity {rarity} has no actions"
+
+            # Verify effect values are scaled to rarity
+            for action in item.actions:
+                assert action.value > 0, f"Action has zero or negative value: {action}"
+
     def test_rarity_scaling_damage(self):
         """Verify damage scales with rarity."""
         factory = self._create_factory()
