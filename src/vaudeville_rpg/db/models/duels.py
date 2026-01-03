@@ -1,6 +1,7 @@
 """Duel system models."""
 
-from sqlalchemy import Boolean, Enum as SQLEnum, ForeignKey, Integer
+from sqlalchemy import Boolean, ForeignKey, Integer
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
