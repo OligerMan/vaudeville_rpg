@@ -393,13 +393,145 @@ Players are created automatically when a Telegram user first interacts with the 
 
 ## Dungeons (PvE)
 
-### Structure
-- A dungeon is a **series of duels** between one player and computer enemies
-- Player fights through sequential encounters
-- Ends with a **reward** upon completion
+### Overview
+A dungeon is a **series of consecutive duels** between one player and computer-controlled enemies. The player progresses through stages, fighting a different enemy at each stage, until they either complete all stages or are defeated.
 
-### Dungeon Properties
-TODO: Define difficulty levels, enemy scaling, reward tiers
+### Dungeon Model
+
+```
+Dungeon {
+  id: int
+  player_id: int              # Player running this dungeon
+  setting_id: int             # Setting this dungeon is in
+  name: string                # Dungeon name (based on difficulty)
+  difficulty: DungeonDifficulty
+  total_stages: int           # Number of enemies to defeat
+  current_stage: int          # Current progress (1-indexed)
+  status: DungeonStatus       # IN_PROGRESS, COMPLETED, FAILED, ABANDONED
+  current_duel_id: int?       # Active duel (if any)
+}
+```
+
+### DungeonEnemy Model
+
+```
+DungeonEnemy {
+  id: int
+  dungeon_id: int             # Which dungeon
+  stage: int                  # Which stage (1-indexed)
+  enemy_player_id: int        # Bot player for this stage
+  defeated: bool              # Has this enemy been beaten?
+}
+```
+
+### Difficulty Levels
+
+| Difficulty | Stages | Base HP | Base SP | HP/Stage | SP/Stage |
+|------------|--------|---------|---------|----------|----------|
+| EASY | 2 | 60 | 30 | +10 | +5 |
+| NORMAL | 3 | 80 | 40 | +15 | +5 |
+| HARD | 4 | 100 | 50 | +20 | +10 |
+| NIGHTMARE | 5 | 120 | 60 | +30 | +15 |
+
+### Dungeon Names by Difficulty
+
+| Difficulty | Name |
+|------------|------|
+| EASY | Goblin Cave |
+| NORMAL | Dark Dungeon |
+| HARD | Dragon's Lair |
+| NIGHTMARE | Abyss of Torment |
+
+### Enemy Generation
+
+Enemies are bot players (`is_bot = true`) with:
+- Stats scaled by difficulty and stage number
+- Random names from pool (e.g., "Goblin", "Skeleton", "Orc")
+- Higher stages (3+) get prefixes (e.g., "Cursed Goblin", "Ancient Demon")
+
+### Dungeon Status Flow
+
+```
+IN_PROGRESS → COMPLETED (all stages cleared)
+      ↓
+      └──→ FAILED (player lost a duel)
+      └──→ ABANDONED (player quit)
+```
+
+| Status | Description |
+|--------|-------------|
+| `IN_PROGRESS` | Player is actively in the dungeon |
+| `COMPLETED` | All stages cleared successfully |
+| `FAILED` | Player lost to an enemy |
+| `ABANDONED` | Player chose to leave |
+
+### Dungeon Flow
+
+```
+/dungeon
+    ↓
+Select Difficulty
+    ↓
+[Dungeon Created + Stage 1 Duel Started]
+    ↓
+Combat (player vs bot enemy)
+    ↓
+┌───┴───┐
+↓       ↓
+WIN    LOSE
+↓       ↓
+More   FAILED
+stages?
+↓   ↓
+Yes No
+↓   ↓
+Next COMPLETED
+Stage
+```
+
+### Bot Commands
+
+| Command | Description |
+|---------|-------------|
+| `/dungeon` | Start a new dungeon or check current progress |
+
+### Inline Buttons
+
+**Difficulty Selection:**
+- Easy (2 stages)
+- Normal (3 stages)
+- Hard (4 stages)
+- Nightmare (5 stages)
+
+**Combat Actions:**
+- ⚔️ Attack - Use attack item
+- 🛡️ Defense - Use defense item
+- ✨ Misc - Use misc item
+- ⏭️ Skip - Do nothing
+- 🚪 Abandon Dungeon - Leave dungeon (counts as loss)
+
+### Bot AI
+
+During dungeon combat, bot enemies automatically respond with randomly chosen actions:
+- Higher weight for Attack actions
+- Responds immediately after player action
+- No delay or thinking time
+
+### Validation Rules
+
+1. **Starting a Dungeon:**
+   - Player cannot start if already in an active dungeon
+   - Must complete, fail, or abandon current dungeon first
+
+2. **During Combat:**
+   - Only the dungeon owner can submit actions
+   - One action per turn
+   - Cannot leave mid-turn (only via abandon button)
+
+3. **Abandoning:**
+   - Can abandon at any time
+   - Current duel is cancelled
+   - No rewards given
 
 ---
 

@@ -17,15 +17,11 @@ class Player(Base, TimestampMixin):
     """
 
     __tablename__ = "players"
-    __table_args__ = (
-        UniqueConstraint("telegram_user_id", "setting_id", name="uq_player_user_setting"),
-    )
+    __table_args__ = (UniqueConstraint("telegram_user_id", "setting_id", name="uq_player_user_setting"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     telegram_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
-    setting_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("settings.id"), nullable=False, index=True
-    )
+    setting_id: Mapped[int] = mapped_column(Integer, ForeignKey("settings.id"), nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
 
     # Base stats
@@ -39,27 +35,15 @@ class Player(Base, TimestampMixin):
     is_bot: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Equipped items (one per slot, nullable = no item equipped)
-    attack_item_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True
-    )
-    defense_item_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True
-    )
-    misc_item_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True
-    )
+    attack_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True)
+    defense_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True)
+    misc_item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("items.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     setting: Mapped["Setting"] = relationship("Setting", back_populates="players")
-    attack_item: Mapped["Item | None"] = relationship(
-        "Item", foreign_keys=[attack_item_id], lazy="joined"
-    )
-    defense_item: Mapped["Item | None"] = relationship(
-        "Item", foreign_keys=[defense_item_id], lazy="joined"
-    )
-    misc_item: Mapped["Item | None"] = relationship(
-        "Item", foreign_keys=[misc_item_id], lazy="joined"
-    )
+    attack_item: Mapped["Item | None"] = relationship("Item", foreign_keys=[attack_item_id], lazy="joined")
+    defense_item: Mapped["Item | None"] = relationship("Item", foreign_keys=[defense_item_id], lazy="joined")
+    misc_item: Mapped["Item | None"] = relationship("Item", foreign_keys=[misc_item_id], lazy="joined")
     combat_states: Mapped[list["PlayerCombatState"]] = relationship(
         "PlayerCombatState", back_populates="player", cascade="all, delete-orphan"
     )
@@ -75,26 +59,18 @@ class PlayerCombatState(Base, TimestampMixin):
     """
 
     __tablename__ = "player_combat_states"
-    __table_args__ = (
-        UniqueConstraint("player_id", "duel_id", name="uq_combat_state_player_duel"),
-    )
+    __table_args__ = (UniqueConstraint("player_id", "duel_id", name="uq_combat_state_player_duel"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    player_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("players.id"), nullable=False, index=True
-    )
-    duel_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("duels.id"), nullable=False, index=True
-    )
+    player_id: Mapped[int] = mapped_column(Integer, ForeignKey("players.id"), nullable=False, index=True)
+    duel_id: Mapped[int] = mapped_column(Integer, ForeignKey("duels.id"), nullable=False, index=True)
 
     # Current stats
     current_hp: Mapped[int] = mapped_column(Integer, nullable=False)
     current_special_points: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Current attribute stacks (e.g., {"poison": 3, "armor": 2})
-    attribute_stacks: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict
-    )
+    attribute_stacks: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
     # Relationships
     player: Mapped["Player"] = relationship("Player", back_populates="combat_states")

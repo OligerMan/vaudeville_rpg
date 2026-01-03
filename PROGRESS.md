@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `feature/pvp-duel-flow` (ready to merge)
+**Branch:** `feature/dungeon-system` (ready to merge)
 **Last Updated:** 2026-01-03
-**Last Commit:** `9ec170d` - feat: Document PvP flow in WIKI.md
+**Last Commit:** `c51ce2f` - feat: Update WIKI.md with dungeon system documentation
 
 ### Completed Phases
 
@@ -16,16 +16,51 @@ This file tracks development progress to restore context between sessions.
 |-------|--------|-------------|
 | Phase 1: Foundation | Done | Python setup, PostgreSQL, Telegram bot |
 | Phase 2: Core Game Systems | Done | Effect, Item, Player, Duel engine |
+| Phase 3: Game Modes | Done | PvP duels, Dungeon system |
 
 ### Current Phase
 
-**Phase 3: Game Modes** (In Progress)
-- [x] PvP duel flow (challenge, accept/decline, duel execution, result)
-- [ ] Dungeon system (enemy generation, dungeon progression, rewards)
+**Phase 4: Meta Systems** (Not Started)
+- [ ] Rating system (rating algorithm, updates after duels)
+- [ ] Leaderboard (ranking display, filtering)
 
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-03 (Part 3)
+
+**Completed:** Dungeon System Implementation
+
+#### What Was Done
+1. Created `feature/dungeon-system` branch
+2. Added Dungeon models (`src/vaudeville_rpg/db/models/dungeons.py`):
+   - `Dungeon`: tracks dungeon runs (player, difficulty, stage, status)
+   - `DungeonEnemy`: links stages to bot enemies
+   - Added `DungeonDifficulty` and `DungeonStatus` enums
+
+3. Created Alembic migration (`005_add_dungeon_system_tables.py`)
+
+4. Added services layer:
+   - `EnemyGenerator`: creates bot players with difficulty-scaled stats
+   - `DungeonService`: start_dungeon, on_duel_completed, abandon_dungeon
+
+5. Added bot handlers (`src/vaudeville_rpg/bot/handlers/dungeons.py`):
+   - `/dungeon` command - start new or check current
+   - Difficulty selection (Easy/Normal/Hard/Nightmare)
+   - Combat actions with abandon option
+   - Bot AI auto-responds to player actions
+
+6. Updated WIKI.md with comprehensive dungeon documentation
+
+#### Key Files Added
+- `src/vaudeville_rpg/db/models/dungeons.py`
+- `src/vaudeville_rpg/services/enemies.py`
+- `src/vaudeville_rpg/services/dungeons.py`
+- `src/vaudeville_rpg/bot/handlers/dungeons.py`
+- `alembic/versions/005_add_dungeon_system_tables.py`
+
+---
 
 ### Session: 2026-01-03 (Part 2)
 
@@ -122,20 +157,18 @@ ConditionEvaluator + ActionExecutor
 
 ## Next Steps
 
-### Immediate (Phase 3)
-1. **PvP Duel Flow**
-   - Bot handlers for `/challenge @user`
-   - Accept/decline inline buttons
-   - Action selection UI
-   - Duel result display
+### Immediate (Phase 4)
+1. **Rating System**
+   - Rating algorithm (Elo or similar)
+   - Rating updates after duels
+   - Rating display in profile
 
-2. **Dungeon System**
-   - Enemy generation (bot players with items)
-   - Dungeon progression model
-   - Reward system
+2. **Leaderboard**
+   - `/leaderboard` command
+   - Top players display
+   - Filtering options
 
 ### Future Phases
-- Phase 4: Rating system, Leaderboard
 - Phase 5: Content population, Balance, UI polish
 
 ---
@@ -166,6 +199,8 @@ python -m vaudeville_rpg
 | Branch | Status | Description |
 |--------|--------|-------------|
 | `master` | Active | Main development branch |
+| `feature/dungeon-system` | Ready | Dungeon system (PvE) |
+| `feature/pvp-duel-flow` | Merged | PvP duel handlers |
 | `feature/duel-engine` | Merged | Duel engine implementation |
 | `feature/player-system` | Merged | Player models and combat state |
 | `feature/item-system` | Merged | Item models and effects |
