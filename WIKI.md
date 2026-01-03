@@ -681,3 +681,193 @@ Leaderboard
 4. FourthPlace - 1234
 ...
 ```
+
+---
+
+## Content Generation System
+
+The game uses **LLM-driven procedural generation** to create unique settings, attributes, world rules, and items from simple user descriptions.
+
+### Generation Pipeline
+
+```
+User Input (simple description)
+        ↓
+Step 1: Setting Generator
+        ↓
+    [Broad Description + Attributes]
+        ↓
+Step 2: World Rules Generator
+        ↓
+    [Formal Rules for Each Attribute]
+        ↓
+Step 3: Effect Template Generator
+        ↓
+    [Item Effect Templates with Rarity Scaling]
+        ↓
+Step 4: Item Type Generator
+        ↓
+    [Setting-Specific Item Types]
+        ↓
+Step 5: Item Factory
+        ↓
+    [Actual Items in Database]
+```
+
+### Step 1: Setting Generation
+
+**Input:** Simple user description (e.g., "I want to live in world of might and magic")
+
+**Output:**
+- **Broad Description:** Expanded world lore (2-3 paragraphs)
+- **Special Points:** Name + description for the mana/energy resource
+- **Attributes:** 3-5 stack-based combat attributes (buffs/debuffs)
+
+```
+Example Output:
+{
+  "broad_description": "This is a world where ancient magic flows through...",
+  "special_points": {
+    "name": "mana",
+    "display_name": "Mana",
+    "description": "Magical energy that powers spells and abilities"
+  },
+  "attributes": [
+    {"name": "poison", "display_name": "Poison", "is_positive": false},
+    {"name": "holy_defense", "display_name": "Holy Defense", "is_positive": true}
+  ]
+}
+```
+
+### Step 2: World Rules Generation
+
+Converts attribute descriptions into **formal game rules**.
+
+**Input:** Attribute description (e.g., "poison - damages every move and removes stacks")
+
+**Output:** World rule definitions with:
+- `phase`: When to trigger (pre_move, post_move, pre_damage, etc.)
+- `requires_attribute`: Which attribute must have stacks
+- `action`: What happens (damage, heal, add_stacks, remove_stacks)
+
+```
+Example: Poison Attribute → 2 Rules
+
+Rule 1 - Poison Tick:
+  phase: pre_move
+  requires_attribute: poison
+  action: damage(5)
+  per_stack: true
+
+Rule 2 - Poison Decay:
+  phase: post_move
+  requires_attribute: poison
+  action: remove_stacks(poison, 1)
+```
+
+### Step 3: Effect Template Generation
+
+Creates **item effect templates** that can be applied to items.
+
+**Output per template:**
+- `prefix`: Naming prefix (e.g., "Poisonous", "Holy")
+- `suffix`: Optional naming suffix (e.g., "of Flames")
+- `slot_type`: Which item slot (attack, defense, misc)
+- `actions`: Effects with **rarity-scaled values**
+
+```
+Example: Poison Strike Template
+{
+  "name": "poison_strike",
+  "prefix": "Poisonous",
+  "slot_type": "attack",
+  "actions": [{
+    "action_type": "add_stacks",
+    "attribute": "poison",
+    "values": {
+      "common": 1,
+      "uncommon": 2,
+      "rare": 3,
+      "epic": 4,
+      "legendary": 5
+    }
+  }]
+}
+```
+
+### Step 4: Item Type Generation
+
+Creates **setting-specific item types** for each slot.
+
+**Output:**
+- Attack types: Swords, Staves, Daggers, etc.
+- Defense types: Shields, Armor, Cloaks, etc.
+- Misc types: Potions, Scrolls, Amulets, etc.
+
+Each type includes **base values** scaled by rarity.
+
+### Step 5: Item Factory
+
+Combines components to create actual items:
+
+```
+Rarity + Effect Template + Item Type = Complete Item
+
+Example:
+Uncommon + Poisonous + Sword = "Uncommon Poisonous Sword"
+  → attack(15 damage)
+  → add_stacks(poison, 2)
+```
+
+### Item Rarity System
+
+| Rarity | Value | Base Damage | Effect Scaling |
+|--------|-------|-------------|----------------|
+| Common | 1 | 10 | 1x |
+| Uncommon | 2 | 15 | 1.5x |
+| Rare | 3 | 20 | 2x |
+| Epic | 4 | 25 | 2.5x |
+| Legendary | 5 | 30 | 3x |
+
+### Item Naming Convention
+
+Items are named using the pattern:
+```
+[Rarity] [Effect Prefix] [Item Type] [Effect Suffix]?
+```
+
+Examples:
+- "Common Poisonous Sword"
+- "Legendary Holy Shield of Protection"
+- "Rare Regenerating Potion"
+
+### LLM Configuration
+
+The system supports multiple LLM backends:
+
+| Setting | Description |
+|---------|-------------|
+| `LLM_PROVIDER` | "anthropic" or "openai" |
+| `LLM_API_KEY` | API key for the provider |
+| `LLM_BASE_URL` | Custom endpoint (for vLLM/local inference) |
+| `LLM_MODEL` | Model to use (default: claude-sonnet-4-20250514) |
+
+**Local Inference:** Set `LLM_PROVIDER=openai` and `LLM_BASE_URL` to your vLLM endpoint.
+
+### Initial Content Generation
+
+When a setting is created with content generation:
+1. **9 items** are created (3 per rarity: common, uncommon, rare)
+2. **World rules** are persisted for all generated attributes
+3. **New players** receive common starter items automatically
+
+### Dungeon Rewards
+
+Completed dungeons award items based on difficulty:
+
+| Difficulty | Rarity Range |
+|------------|--------------|
+| Easy | Common only |
+| Normal | Common - Uncommon |
+| Hard | Uncommon - Rare |
+| Nightmare | Uncommon - Rare |
