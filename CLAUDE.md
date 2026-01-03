@@ -18,7 +18,7 @@ Misc item does something special with its ability(heal, counterspell, etc).
 ### Phase 2: Core Game Systems
 - [x] Effect system (procedural conditions, actions, effects per setting)
 - [x] Item system (items as effect containers, per-setting)
-- [ ] Player system (player model, stats, inventory management)
+- [x] Player system (per-chat players, equipped items, combat state)
 - [ ] Duel engine (turn processing, action resolution, damage calculation)
 
 ### Phase 3: Game Modes
@@ -95,6 +95,7 @@ pytest
 - [x] Procedural effect system (Settings, Conditions, Actions, Effects)
 - [x] Per-chat settings with world rules
 - [x] Item system with effect containers
+- [x] Player system (per-chat, equipped items, persisted combat state)
 
 ---
 
