@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `feature/rating-system` (ready to merge)
-**Last Updated:** 2026-01-03
-**Last Commit:** `a7356f7` - feat: Document rating system in WIKI.md
+**Branch:** `master`
+**Last Updated:** 2026-01-04
+**Last Commit:** Merge branch 'feature/generation-pipeline'
 
 ### Completed Phases
 
@@ -21,14 +21,61 @@ This file tracks development progress to restore context between sessions.
 
 ### Current Phase
 
-**Phase 5: Content & Polish** (Not Started)
-- [ ] Initial item/ability content population
+**Phase 5: Content & Polish** (In Progress)
+- [x] LLM content generation system (generators, schemas)
+- [x] Content validation layer (validators)
+- [x] JSON parsing and database integration (parser)
+- [x] SettingFactory pipeline orchestration
 - [ ] Balance tuning
 - [ ] Telegram UI/UX improvements
 
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-04
+
+**Completed:** Generation Pipeline - Validation and Parsing Layer
+
+#### What Was Done
+1. Created `feature/generation-pipeline` branch
+2. Added validation layer (`src/vaudeville_rpg/llm/validators.py`):
+   - `SettingValidator`: validates settings (description, attributes, special points)
+   - `WorldRulesValidator`: validates world rules (phases, actions, attributes)
+   - `EffectTemplateValidator`: validates effect templates (slots, rarity scaling)
+   - `ItemTypeValidator`: validates item types (base stats per slot)
+   - `validate_all()`: cross-reference validation
+
+3. Added parser layer (`src/vaudeville_rpg/llm/parser.py`):
+   - `WorldRulesParser`: converts world rules to database models (Condition, Action, Effect)
+   - `ItemParser`: converts items to database models with proper phase conditions
+
+4. Added SettingFactory (`src/vaudeville_rpg/llm/setting_factory.py`):
+   - Orchestrates 5-step generation pipeline
+   - Returns `PipelineResult` with all generated content
+   - Handles validation at each step
+
+5. Added comprehensive tests:
+   - `tests/test_validators.py`: 48 tests for validation layer
+   - `tests/test_json_parsing.py`: 18 tests for JSON → schema parsing
+   - `tests/test_generation.py`: Added effect verification tests
+
+6. Updated WIKI.md with pipeline documentation
+
+#### Key Files Added
+- `src/vaudeville_rpg/llm/validators.py` (409 lines)
+- `src/vaudeville_rpg/llm/parser.py` (395 lines)
+- `src/vaudeville_rpg/llm/setting_factory.py` (429 lines)
+- `tests/test_validators.py` (482 lines)
+- `tests/test_json_parsing.py` (825 lines)
+
+#### Test Coverage
+- **Total tests:** 147 passing
+- Validation: 48 tests
+- JSON parsing: 18 tests
+- Generation/Factory: 28 tests
+
+---
 
 ### Session: 2026-01-03 (Part 4)
 
@@ -94,68 +141,24 @@ This file tracks development progress to restore context between sessions.
 
 ---
 
-### Session: 2026-01-03 (Part 2)
-
-**Completed:** PvP Duel Flow Implementation
-
-#### What Was Done
-1. Created `feature/pvp-duel-flow` branch
-2. Added service layer (`src/vaudeville_rpg/services/`):
-   - `PlayerService`: get_or_create_player, get_or_create_setting
-   - `DuelService`: create_challenge, accept/decline, submit_action
-
-3. Added bot handlers (`src/vaudeville_rpg/bot/handlers/duels.py`):
-   - `/challenge` command (reply to user)
-   - Accept/Decline inline buttons
-   - Action selection (Attack/Defense/Misc/Skip)
-   - Duel state display with HP, SP, stacks
-   - Turn result formatting
-
-4. Updated WIKI.md with PvP flow documentation
-
-#### Key Files Added
-- `src/vaudeville_rpg/services/__init__.py`
-- `src/vaudeville_rpg/services/players.py`
-- `src/vaudeville_rpg/services/duels.py`
-- `src/vaudeville_rpg/bot/handlers/duels.py`
-
----
-
-### Session: 2026-01-03 (Part 1)
-
-**Completed:** Duel Engine Implementation
-
-#### What Was Done
-1. Merged `feature/duel-engine` branch into master (14 commits)
-2. Created full duel engine module (`src/vaudeville_rpg/engine/`):
-   - `types.py` - CombatState, DuelContext, TurnResult data classes
-   - `conditions.py` - ConditionEvaluator (PHASE, HAS_STACKS, AND, OR)
-   - `actions.py` - ActionExecutor (damage, heal, stacks, etc.)
-   - `effects.py` - EffectProcessor (phase-based execution)
-   - `turn.py` - TurnResolver (simultaneous action processing)
-   - `duel.py` - DuelEngine (main API with async DB operations)
-
-3. Added comprehensive tests (`tests/test_engine.py`):
-   - 50 engine tests including complex scenarios
-   - Multi-turn duel simulations
-   - Poison tick + decay, armor reduction, multiple DoTs
-   - 78 total tests passing
-
-4. Database:
-   - Added Duel, DuelParticipant, DuelAction models
-   - Created Alembic migration `004_add_duel_system_tables.py`
-
-#### Key Files Modified
-- `src/vaudeville_rpg/engine/` (new module, 7 files)
-- `src/vaudeville_rpg/db/models/duels.py` (new)
-- `src/vaudeville_rpg/db/models/enums.py` (added DuelStatus, DuelActionType)
-- `tests/test_engine.py` (new, 1409 lines)
-- `WIKI.md` (duel system documentation)
-- `CLAUDE.md` (marked duel engine complete)
-
----
-
 ## Architecture Overview
+
+### Content Generation Pipeline
+```
+User Input (simple description)
+        ↓
+Step 1: SettingGenerator → GeneratedSetting
+        ↓
+Step 2: WorldRulesGenerator → GeneratedWorldRules (per attribute)
+        ↓
+Step 3: EffectTemplateGenerator → GeneratedEffectTemplates
+        ↓
+Step 4: ItemTypeGenerator → GeneratedItemTypes
+        ↓
+Step 5: ItemFactory → Database Items
+        ↓
+    PipelineResult (validated content)
+```
 
 ### Duel Engine Flow
 ```
@@ -178,32 +181,32 @@ ConditionEvaluator + ActionExecutor
 ### Key Classes
 | Class | Purpose |
 |-------|---------|
+| `SettingFactory` | Orchestrates content generation pipeline |
+| `ItemFactory` | Creates items from templates with rarity scaling |
 | `DuelEngine` | Main API - create_duel, submit_action, cancel_duel |
 | `TurnResolver` | Orchestrates full turn with all phases |
 | `EffectProcessor` | Collects and executes effects by phase |
 | `ConditionEvaluator` | Checks if effect conditions are met |
 | `ActionExecutor` | Applies actions to combat state |
-| `CombatState` | In-memory player state during duel |
 
 ---
 
 ## Next Steps
 
-### Immediate (Phase 5)
-1. **Item Content**
-   - Create initial item templates
-   - Procedural item generation
-   - Item drop/reward system
-
-2. **Balance Tuning**
+### Immediate (Phase 5 - Remaining)
+1. **Balance Tuning**
    - Adjust HP/SP values
    - Effect damage/healing values
    - Dungeon difficulty scaling
 
-3. **UI/UX Polish**
+2. **UI/UX Polish**
    - Better duel state display
    - Progress messages
    - Error handling improvements
+
+3. **Integration Testing**
+   - End-to-end content generation
+   - Full game flow testing
 
 ---
 
@@ -233,7 +236,9 @@ python -m vaudeville_rpg
 | Branch | Status | Description |
 |--------|--------|-------------|
 | `master` | Active | Main development branch |
-| `feature/rating-system` | Ready | Rating system and leaderboard |
+| `feature/generation-pipeline` | Merged | Validation and parsing layer |
+| `feature/item-content` | Merged | LLM content generation system |
+| `feature/rating-system` | Merged | Rating system and leaderboard |
 | `feature/dungeon-system` | Merged | Dungeon system (PvE) |
 | `feature/pvp-duel-flow` | Merged | PvP duel handlers |
 | `feature/duel-engine` | Merged | Duel engine implementation |
