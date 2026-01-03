@@ -92,3 +92,21 @@ class DuelActionType(str, Enum):
     DEFENSE = "defense"  # Use defense item ability
     MISC = "misc"  # Use misc item ability
     SKIP = "skip"  # Do nothing this turn
+
+
+class DungeonDifficulty(str, Enum):
+    """Difficulty level of a dungeon."""
+
+    EASY = "easy"  # Weaker enemies, fewer stages
+    NORMAL = "normal"  # Standard difficulty
+    HARD = "hard"  # Stronger enemies, more stages
+    NIGHTMARE = "nightmare"  # Very strong enemies, many stages
+
+
+class DungeonStatus(str, Enum):
+    """Status of a dungeon run."""
+
+    IN_PROGRESS = "in_progress"  # Player is running the dungeon
+    COMPLETED = "completed"  # Player defeated all enemies
+    FAILED = "failed"  # Player was defeated
+    ABANDONED = "abandoned"  # Player quit the dungeon

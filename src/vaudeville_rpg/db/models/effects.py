@@ -29,9 +29,7 @@ class Condition(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    condition_type: Mapped[ConditionType] = mapped_column(
-        SQLEnum(ConditionType, name="condition_type"), nullable=False
-    )
+    condition_type: Mapped[ConditionType] = mapped_column(SQLEnum(ConditionType, name="condition_type"), nullable=False)
 
     # JSON structure for condition data
     # For PHASE: {"phase": "pre_attack"}
@@ -62,9 +60,7 @@ class Action(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
-    action_type: Mapped[ActionType] = mapped_column(
-        SQLEnum(ActionType, name="action_type"), nullable=False
-    )
+    action_type: Mapped[ActionType] = mapped_column(SQLEnum(ActionType, name="action_type"), nullable=False)
 
     # JSON structure for action data
     # Common fields:
@@ -96,39 +92,25 @@ class Effect(Base, TimestampMixin):
     description: Mapped[str] = mapped_column(Text, nullable=True)
 
     # What triggers this effect
-    condition_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("conditions.id"), nullable=False
-    )
+    condition_id: Mapped[int] = mapped_column(Integer, ForeignKey("conditions.id"), nullable=False)
 
     # Who is affected
-    target: Mapped[TargetType] = mapped_column(
-        SQLEnum(TargetType, name="target_type"), nullable=False
-    )
+    target: Mapped[TargetType] = mapped_column(SQLEnum(TargetType, name="target_type"), nullable=False)
 
     # Where this effect is defined
-    category: Mapped[EffectCategory] = mapped_column(
-        SQLEnum(EffectCategory, name="effect_category"), nullable=False
-    )
+    category: Mapped[EffectCategory] = mapped_column(SQLEnum(EffectCategory, name="effect_category"), nullable=False)
 
     # What happens
-    action_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("actions.id"), nullable=False
-    )
+    action_id: Mapped[int] = mapped_column(Integer, ForeignKey("actions.id"), nullable=False)
 
     # Ownership - either belongs to a setting (world rule) or an item
-    setting_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("settings.id"), nullable=True, index=True
-    )
-    item_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("items.id"), nullable=True, index=True
-    )
+    setting_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("settings.id"), nullable=True, index=True)
+    item_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("items.id"), nullable=True, index=True)
 
     # Relationships
     condition: Mapped["Condition"] = relationship("Condition", back_populates="effects")
     action: Mapped["Action"] = relationship("Action", back_populates="effects")
-    setting: Mapped["Setting | None"] = relationship(
-        "Setting", back_populates="world_rules", foreign_keys=[setting_id]
-    )
+    setting: Mapped["Setting | None"] = relationship("Setting", back_populates="world_rules", foreign_keys=[setting_id])
     item: Mapped["Item | None"] = relationship("Item", back_populates="effects")
 
     def __repr__(self) -> str:

@@ -2,6 +2,7 @@
 
 from .base import Base, TimestampMixin
 from .duels import Duel, DuelAction, DuelParticipant
+from .dungeons import Dungeon, DungeonEnemy
 from .effects import Action, Condition, Effect
 from .enums import (
     ActionType,
@@ -10,6 +11,8 @@ from .enums import (
     ConditionType,
     DuelActionType,
     DuelStatus,
+    DungeonDifficulty,
+    DungeonStatus,
     EffectCategory,
     ItemSlot,
     TargetType,
@@ -29,6 +32,8 @@ __all__ = [
     "ConditionType",
     "DuelActionType",
     "DuelStatus",
+    "DungeonDifficulty",
+    "DungeonStatus",
     "EffectCategory",
     "ItemSlot",
     "TargetType",
@@ -48,4 +53,7 @@ __all__ = [
     "Duel",
     "DuelParticipant",
     "DuelAction",
+    # Dungeons
+    "Dungeon",
+    "DungeonEnemy",
 ]

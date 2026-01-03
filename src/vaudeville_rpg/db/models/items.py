@@ -20,23 +20,15 @@ class Item(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    slot: Mapped[ItemSlot] = mapped_column(
-        SQLEnum(ItemSlot, name="item_slot"), nullable=False
-    )
-    rarity: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1
-    )  # 1=common, 2=uncommon, 3=rare, 4=epic, 5=legendary
+    slot: Mapped[ItemSlot] = mapped_column(SQLEnum(ItemSlot, name="item_slot"), nullable=False)
+    rarity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # 1=common, 2=uncommon, 3=rare, 4=epic, 5=legendary
 
     # Which setting this item belongs to
-    setting_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("settings.id"), nullable=False, index=True
-    )
+    setting_id: Mapped[int] = mapped_column(Integer, ForeignKey("settings.id"), nullable=False, index=True)
 
     # Relationships
     setting: Mapped["Setting"] = relationship("Setting", back_populates="items")
-    effects: Mapped[list["Effect"]] = relationship(
-        "Effect", back_populates="item", cascade="all, delete-orphan"
-    )
+    effects: Mapped[list["Effect"]] = relationship("Effect", back_populates="item", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Item(name={self.name}, slot={self.slot}, rarity={self.rarity})>"
