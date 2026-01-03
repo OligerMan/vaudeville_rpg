@@ -74,3 +74,21 @@ class EffectCategory(str, Enum):
 
     ITEM_EFFECT = "item_effect"  # Effect comes from an equipped item
     WORLD_RULE = "world_rule"  # Effect is a setting-level rule
+
+
+class DuelStatus(str, Enum):
+    """Status of a duel."""
+
+    PENDING = "pending"  # Waiting for acceptance (PvP) or start (PvE)
+    IN_PROGRESS = "in_progress"  # Both players joined, turns being processed
+    COMPLETED = "completed"  # One player won (HP reached 0)
+    CANCELLED = "cancelled"  # Duel was cancelled before completion
+
+
+class DuelActionType(str, Enum):
+    """Type of action a player can take in a duel turn."""
+
+    ATTACK = "attack"  # Use attack item ability
+    DEFENSE = "defense"  # Use defense item ability
+    MISC = "misc"  # Use misc item ability
+    SKIP = "skip"  # Do nothing this turn
