@@ -5,7 +5,7 @@ from typing import Any
 
 from ..db.models.enums import ConditionPhase, ConditionType, DuelActionType, ItemSlot
 from .effects import EffectData, EffectProcessor
-from .types import CombatState, DuelContext, TurnResult
+from .types import DuelContext, TurnResult
 
 
 @dataclass
@@ -73,14 +73,10 @@ class TurnResolver:
                 action_map.get(participant_id),
                 participant_items.get(participant_id, {}),
             )
-            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(
-                participant_id, world_rules, item_effects
-            )
+            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(participant_id, world_rules, item_effects)
 
         # Phase 1: PRE_MOVE
-        self._process_phase_for_all(
-            ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result)
 
         # Check for deaths after PRE_MOVE (e.g., poison)
         winner = self._check_winner(context)
@@ -90,16 +86,12 @@ class TurnResolver:
             return result
 
         # Phase 2: Action resolution (PRE_ATTACK → ATTACK → POST_ATTACK)
-        self._process_phase_for_all(
-            ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result)
 
         # Execute actual attacks from actions
         for participant_id, action in action_map.items():
             if action.action_type != DuelActionType.SKIP:
-                attack_effects = self._get_attack_effects_from_action(
-                    participant_id, action, participant_items.get(participant_id, {})
-                )
+                attack_effects = self._get_attack_effects_from_action(participant_id, action, participant_items.get(participant_id, {}))
                 for effect in attack_effects:
                     phase_results = self.effect_processor.process_phase(
                         ConditionPhase.PRE_ATTACK,  # Attack effects trigger at attack phase
@@ -109,14 +101,10 @@ class TurnResolver:
                     )
                     result.effects_applied.extend(phase_results)
 
-        self._process_phase_for_all(
-            ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result)
 
         # Phase 3: Damage resolution (PRE_DAMAGE → apply → POST_DAMAGE)
-        self._process_phase_for_all(
-            ConditionPhase.PRE_DAMAGE, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.PRE_DAMAGE, all_effects, context, all_conditions, result)
 
         # Apply any pending damage
         for state in context.states.values():
@@ -135,9 +123,7 @@ class TurnResolver:
                         )
                     )
 
-        self._process_phase_for_all(
-            ConditionPhase.POST_DAMAGE, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.POST_DAMAGE, all_effects, context, all_conditions, result)
 
         # Check for deaths after damage
         winner = self._check_winner(context)
@@ -147,9 +133,7 @@ class TurnResolver:
             return result
 
         # Phase 4: POST_MOVE
-        self._process_phase_for_all(
-            ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result
-        )
+        self._process_phase_for_all(ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result)
 
         # Reset turn modifiers
         for state in context.states.values():
@@ -177,9 +161,7 @@ class TurnResolver:
         for effects in all_effects.values():
             combined.extend(effects)
 
-        phase_results = self.effect_processor.process_phase(
-            phase, combined, context, all_conditions
-        )
+        phase_results = self.effect_processor.process_phase(phase, combined, context, all_conditions)
         result.effects_applied.extend(phase_results)
 
     def _get_active_item_effects(

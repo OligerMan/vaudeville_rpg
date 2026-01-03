@@ -8,11 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..db.models.duels import Duel, DuelAction, DuelParticipant
-from ..db.models.effects import Action, Condition, Effect
+from ..db.models.effects import Condition, Effect
 from ..db.models.enums import ConditionType, DuelActionType, DuelStatus, EffectCategory, ItemSlot
 from ..db.models.items import Item
 from ..db.models.players import Player, PlayerCombatState
-from ..db.models.settings import Setting
 from .effects import EffectData
 from .turn import ItemData, ParticipantAction, TurnResolver
 from .types import CombatState, DuelContext, TurnResult
@@ -260,11 +259,7 @@ class DuelEngine:
 
     async def _load_duel(self, duel_id: int) -> Duel | None:
         """Load a duel with its participants."""
-        stmt = (
-            select(Duel)
-            .where(Duel.id == duel_id)
-            .options(selectinload(Duel.participants))
-        )
+        stmt = select(Duel).where(Duel.id == duel_id).options(selectinload(Duel.participants))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -386,9 +381,7 @@ class DuelEngine:
             for e in effects
         ]
 
-    async def _load_participant_items(
-        self, participants: list[DuelParticipant]
-    ) -> dict[int, dict[ItemSlot, ItemData]]:
+    async def _load_participant_items(self, participants: list[DuelParticipant]) -> dict[int, dict[ItemSlot, ItemData]]:
         """Load equipped items for all participants."""
         player_ids = [p.player_id for p in participants]
         players = await self._load_players(player_ids)
