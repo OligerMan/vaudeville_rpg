@@ -871,3 +871,136 @@ Completed dungeons award items based on difficulty:
 | Normal | Common - Uncommon |
 | Hard | Uncommon - Rare |
 | Nightmare | Uncommon - Rare |
+
+---
+
+## Setting Factory
+
+The `SettingFactory` is the main entry point for creating complete settings from user input. It orchestrates the full pipeline with validation and retry logic.
+
+### Usage
+
+```python
+from vaudeville_rpg.llm import SettingFactory, get_llm_client
+
+# Initialize factory
+factory = SettingFactory(session=db_session)
+
+# Create complete setting from user prompt
+result = await factory.create_setting(
+    telegram_chat_id=12345,
+    user_prompt="I want a world of might and magic",
+    validate=True,
+    retry_on_validation_fail=True,
+    max_retries=2,
+)
+
+if result.success:
+    print(f"Setting created: {result.setting.name}")
+    print(f"Attributes: {result.attributes_created}")
+    print(f"World rules: {result.world_rules_created}")
+    print(f"Items: {result.items_created}")
+else:
+    print(f"Failed: {result.message}")
+```
+
+### Pipeline Result
+
+The factory returns a `PipelineResult` with:
+
+| Field | Description |
+|-------|-------------|
+| `success` | Whether the pipeline completed successfully |
+| `message` | Status or error message |
+| `setting` | Created Setting database object |
+| `steps` | List of PipelineStep results |
+| `attributes_created` | Number of attributes generated |
+| `world_rules_created` | Number of world rules created |
+| `effect_templates_created` | Number of effect templates |
+| `item_types_created` | Number of item types |
+| `items_created` | Number of items persisted |
+
+### Pipeline Steps
+
+Each step is tracked with:
+- `name`: Step identifier
+- `success`: Whether the step succeeded
+- `message`: Status or error message
+- `data`: Generated data (if successful)
+- `validation_errors`: List of validation errors (if any)
+
+---
+
+## Validation Layer
+
+All LLM outputs are validated before being parsed into database models.
+
+### Validators
+
+| Validator | Purpose |
+|-----------|---------|
+| `SettingValidator` | Validates setting description and attributes |
+| `WorldRulesValidator` | Validates world rule definitions |
+| `EffectTemplateValidator` | Validates effect templates |
+| `ItemTypeValidator` | Validates item type definitions |
+
+### Validation Checks
+
+**Setting Validation:**
+- Broad description minimum 50 characters
+- Special points name and display name required
+- 2-10 attributes required
+- No duplicate attribute names
+
+**World Rules Validation:**
+- Valid phase (pre_move, post_move, etc.)
+- Valid action type (damage, heal, add_stacks, etc.)
+- Valid target (self, enemy)
+- Attribute references exist
+- No duplicate rule names
+
+**Effect Template Validation:**
+- Valid slot type (attack, defense, misc)
+- Prefix required
+- Legendary values >= common values
+- Attribute references exist for stack operations
+
+**Item Type Validation:**
+- Required base values for each slot type
+- Correct slot assignment
+
+### Cross-Reference Validation
+
+The `validate_all` function validates all content together, ensuring:
+- Effect templates reference valid attributes
+- World rules reference valid attributes
+- Consistent naming across all content
+
+---
+
+## Parser Layer
+
+Parsers convert validated LLM outputs into database models.
+
+### WorldRulesParser
+
+Converts world rule definitions into:
+- `Condition` records (phase + has_stacks + AND composite)
+- `Action` records
+- `Effect` records (category: WORLD_RULE)
+
+### ItemParser
+
+Converts item definitions into:
+- `Item` records
+- `Condition` records (based on item slot)
+- `Action` records
+- `Effect` records (category: ITEM_EFFECT, linked to item)
+
+### Item Slot to Phase Mapping
+
+| Slot | Trigger Phase |
+|------|---------------|
+| Attack | PRE_ATTACK |
+| Defense | PRE_DAMAGE |
+| Misc | PRE_MOVE |
