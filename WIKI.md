@@ -255,6 +255,66 @@ Once a complex action pattern is validated and saved, it can be used as a templa
 
 ---
 
+## Player System
+
+### Player Model
+
+Players are **per-chat** - the same Telegram user has separate player profiles in different chats/settings.
+
+```
+Player {
+  telegram_user_id: BigInteger   # Telegram user ID
+  setting_id: int                # Which chat/setting this player belongs to
+  display_name: string           # Display name (from Telegram)
+  max_hp: int                    # Maximum health points
+  max_special_points: int        # Maximum special points (mana/energy)
+  rating: int                    # PvP rating (default: 1000)
+  attack_item_id: int?           # Equipped attack item (nullable)
+  defense_item_id: int?          # Equipped defense item (nullable)
+  misc_item_id: int?             # Equipped misc item (nullable)
+}
+```
+
+### Equipped Items
+
+Players have exactly **3 item slots** (no inventory):
+- **Attack slot** - One attack item
+- **Defense slot** - One defense item
+- **Misc slot** - One misc item
+
+When a player receives a new item, it **replaces** the existing item in that slot.
+
+### Combat State
+
+Combat state is **persisted to database** to survive bot restarts.
+
+```
+PlayerCombatState {
+  player_id: int                 # Which player
+  duel_id: int                   # Which duel this state is for
+  current_hp: int                # Current health
+  current_special_points: int    # Current special points
+  attribute_stacks: JSONB        # {"poison": 3, "armor": 2, ...}
+}
+```
+
+### Player Creation
+
+Players are created automatically when a Telegram user first interacts with the bot in a chat:
+1. Check if player exists for (telegram_user_id, setting_id)
+2. If not, create with default stats from setting
+3. Player starts with no items equipped
+
+### Default Stats
+
+| Stat | Default Value |
+|------|---------------|
+| `max_hp` | 100 |
+| `max_special_points` | 50 |
+| `rating` | 1000 |
+
+---
+
 ## Dungeons (PvE)
 
 ### Structure

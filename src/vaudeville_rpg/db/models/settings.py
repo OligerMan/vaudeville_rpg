@@ -46,6 +46,9 @@ class Setting(Base, TimestampMixin):
     items: Mapped[list["Item"]] = relationship(
         "Item", back_populates="setting", cascade="all, delete-orphan"
     )
+    players: Mapped[list["Player"]] = relationship(
+        "Player", back_populates="setting", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Setting(name={self.name}, chat={self.telegram_chat_id})>"
@@ -91,3 +94,4 @@ class AttributeDefinition(Base, TimestampMixin):
 # Forward references for type hints
 from .effects import Effect  # noqa: E402, F401
 from .items import Item  # noqa: E402, F401
+from .players import Player  # noqa: E402, F401

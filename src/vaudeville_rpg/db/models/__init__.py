@@ -12,6 +12,7 @@ from .enums import (
     TargetType,
 )
 from .items import Item
+from .players import Player, PlayerCombatState
 from .settings import AttributeDefinition, Setting
 
 __all__ = [
@@ -35,4 +36,7 @@ __all__ = [
     "Effect",
     # Items
     "Item",
+    # Players
+    "Player",
+    "PlayerCombatState",
 ]
