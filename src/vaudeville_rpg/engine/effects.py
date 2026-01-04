@@ -1,12 +1,15 @@
 """Effect processor - collects and executes effects by phase."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..db.models.enums import ConditionPhase, ConditionType, EffectCategory, TargetType
 from .actions import ActionExecutor
 from .conditions import ConditionEvaluator
 from .types import ActionContext, CombatState, DuelContext, EffectResult
+
+if TYPE_CHECKING:
+    from .logging import CombatLogger
 
 
 @dataclass
@@ -27,7 +30,8 @@ class EffectData:
 class EffectProcessor:
     """Processes effects for a phase, collecting and executing them in order."""
 
-    def __init__(self) -> None:
+    def __init__(self, logger: "CombatLogger | None" = None) -> None:
+        self.logger = logger
         self.condition_evaluator = ConditionEvaluator()
         self.action_executor = ActionExecutor()
 
@@ -37,6 +41,7 @@ class EffectProcessor:
         effects: list[EffectData],
         context: DuelContext,
         all_conditions: dict[int, tuple[ConditionType, dict[str, Any]]] | None = None,
+        turn_number: int = 0,
     ) -> list[EffectResult]:
         """Process all effects for a given phase.
 
@@ -45,6 +50,7 @@ class EffectProcessor:
             effects: All effects that might trigger
             context: Duel context with combat states
             all_conditions: Dict of all conditions for AND/OR resolution
+            turn_number: Current turn number (for logging)
 
         Returns:
             List of effect results from this phase
@@ -58,22 +64,52 @@ class EffectProcessor:
             # Get the combat state of the effect owner
             owner_state = context.states.get(effect.owner_participant_id)
             if owner_state is None:
+                if self.logger:
+                    self.logger.log_effect_skipped(
+                        turn_number=turn_number,
+                        phase=phase,
+                        participant_id=effect.owner_participant_id,
+                        effect_name=effect.name,
+                        reason="Owner state not found",
+                    )
                 continue
 
             # Check if the condition is met
             # For world rules, we check against the owner's state
-            if not self.condition_evaluator.evaluate(
+            condition_met = self.condition_evaluator.evaluate(
                 effect.condition_type,
                 effect.condition_data,
                 phase,
                 owner_state,
                 all_conditions,
-            ):
+            )
+
+            # Log condition evaluation
+            if self.logger:
+                self.logger.log_effect_evaluated(
+                    turn_number=turn_number,
+                    phase=phase,
+                    participant_id=effect.owner_participant_id,
+                    effect_name=effect.name,
+                    condition_type=effect.condition_type.value,
+                    condition_data=effect.condition_data,
+                    condition_result=condition_met,
+                )
+
+            if not condition_met:
                 continue
 
             # Resolve target
             target_state = self._resolve_target(effect.target, effect.owner_participant_id, context)
             if target_state is None:
+                if self.logger:
+                    self.logger.log_effect_skipped(
+                        turn_number=turn_number,
+                        phase=phase,
+                        participant_id=effect.owner_participant_id,
+                        effect_name=effect.name,
+                        reason="Target state not found",
+                    )
                 continue
 
             # Create action context
@@ -90,7 +126,20 @@ class EffectProcessor:
             try:
                 action_type = ActionType(effect.action_type)
             except ValueError:
+                if self.logger:
+                    self.logger.log_effect_skipped(
+                        turn_number=turn_number,
+                        phase=phase,
+                        participant_id=effect.owner_participant_id,
+                        effect_name=effect.name,
+                        reason=f"Invalid action type: {effect.action_type}",
+                    )
                 continue
+
+            # Capture state before action for logging
+            state_before_snapshot = None
+            if self.logger:
+                state_before_snapshot = self.logger.snapshot_state(target_state)
 
             result = self.action_executor.execute(
                 action_type,
@@ -99,6 +148,36 @@ class EffectProcessor:
                 effect.name,
             )
             results.append(result)
+
+            # Log action execution
+            if self.logger and state_before_snapshot:
+                # Create a temporary CombatState from the snapshot for logging
+                from .types import CombatState
+
+                state_before_obj = CombatState(
+                    player_id=0,  # Not needed for logging
+                    participant_id=state_before_snapshot.participant_id,
+                    current_hp=state_before_snapshot.current_hp,
+                    max_hp=state_before_snapshot.max_hp,
+                    current_special_points=state_before_snapshot.current_special_points,
+                    max_special_points=state_before_snapshot.max_special_points,
+                    attribute_stacks=dict(state_before_snapshot.attribute_stacks),
+                    incoming_damage_reduction=state_before_snapshot.incoming_damage_reduction,
+                    pending_damage=state_before_snapshot.pending_damage,
+                )
+                self.logger.log_action_executed(
+                    turn_number=turn_number,
+                    phase=phase,
+                    participant_id=effect.owner_participant_id,
+                    target_participant_id=target_state.participant_id,
+                    effect_name=effect.name,
+                    action_type=action_type.value,
+                    action_data=effect.action_data,
+                    value=result.value,
+                    description=result.description,
+                    state_before=state_before_obj,
+                    state_after=target_state,
+                )
 
         return results
 

@@ -1,11 +1,14 @@
 """Turn resolver - processes both players' actions simultaneously."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..db.models.enums import ConditionPhase, ConditionType, DuelActionType, ItemSlot
 from .effects import EffectData, EffectProcessor
 from .types import DuelContext, TurnResult
+
+if TYPE_CHECKING:
+    from .logging import CombatLogger
 
 
 @dataclass
@@ -29,8 +32,9 @@ class ItemData:
 class TurnResolver:
     """Resolves a complete turn with both players' actions."""
 
-    def __init__(self) -> None:
-        self.effect_processor = EffectProcessor()
+    def __init__(self, logger: "CombatLogger | None" = None) -> None:
+        self.logger = logger
+        self.effect_processor = EffectProcessor(logger=logger)
 
     def resolve_turn(
         self,
@@ -62,6 +66,10 @@ class TurnResolver:
         """
         result = TurnResult(turn_number=context.current_turn)
 
+        # Log turn start
+        if self.logger:
+            self.logger.log_turn_start(context.current_turn, context.states)
+
         # Build action lookup
         action_map = {a.participant_id: a for a in actions}
 
@@ -83,6 +91,9 @@ class TurnResolver:
         if winner is not None:
             result.winner_participant_id = winner
             result.is_duel_over = True
+            if self.logger:
+                self.logger.log_winner(context.current_turn, winner)
+                self.logger.log_turn_end(context.current_turn, context.states)
             return result
 
         # Phase 2: Action resolution (PRE_ATTACK → ATTACK → POST_ATTACK)
@@ -97,6 +108,12 @@ class TurnResolver:
         # Apply any pending damage
         for state in context.states.values():
             if state.pending_damage > 0:
+                # Capture state before
+                state_before_hp = state.current_hp
+                state_before_pending = state.pending_damage
+                state_before_reduction = state.incoming_damage_reduction
+                state_before_stacks = dict(state.attribute_stacks)
+
                 actual = state.apply_damage(state.pending_damage)
                 if actual > 0:
                     from .types import EffectResult
@@ -111,6 +128,31 @@ class TurnResolver:
                         )
                     )
 
+                    # Log pending damage application
+                    if self.logger:
+                        from .logging import StateSnapshot
+                        from .types import CombatState
+
+                        # Create a temporary state object for the before snapshot
+                        before_state = CombatState(
+                            player_id=0,  # Not needed for snapshot
+                            participant_id=state.participant_id,
+                            current_hp=state_before_hp,
+                            max_hp=state.max_hp,
+                            current_special_points=state.current_special_points,
+                            max_special_points=state.max_special_points,
+                            attribute_stacks=state_before_stacks,
+                            incoming_damage_reduction=state_before_reduction,
+                            pending_damage=state_before_pending,
+                        )
+                        self.logger.log_pending_damage_applied(
+                            turn_number=context.current_turn,
+                            target_participant_id=state.participant_id,
+                            value=actual,
+                            state_before=before_state,
+                            state_after=state,
+                        )
+
         self._process_phase_for_all(ConditionPhase.POST_DAMAGE, all_effects, context, all_conditions, result)
 
         # Check for deaths after damage
@@ -118,6 +160,9 @@ class TurnResolver:
         if winner is not None:
             result.winner_participant_id = winner
             result.is_duel_over = True
+            if self.logger:
+                self.logger.log_winner(context.current_turn, winner)
+                self.logger.log_turn_end(context.current_turn, context.states)
             return result
 
         # Phase 4: POST_MOVE
@@ -132,6 +177,12 @@ class TurnResolver:
         if winner is not None:
             result.winner_participant_id = winner
             result.is_duel_over = True
+            if self.logger:
+                self.logger.log_winner(context.current_turn, winner)
+
+        # Log turn end
+        if self.logger:
+            self.logger.log_turn_end(context.current_turn, context.states)
 
         return result
 
@@ -144,13 +195,23 @@ class TurnResolver:
         result: TurnResult,
     ) -> None:
         """Process a phase for all participants."""
+        # Log phase start
+        if self.logger:
+            self.logger.log_phase_start(context.current_turn, phase)
+
         # Combine all effects and sort by name globally
         combined: list[EffectData] = []
         for effects in all_effects.values():
             combined.extend(effects)
 
-        phase_results = self.effect_processor.process_phase(phase, combined, context, all_conditions)
+        phase_results = self.effect_processor.process_phase(
+            phase, combined, context, all_conditions, context.current_turn
+        )
         result.effects_applied.extend(phase_results)
+
+        # Log phase end
+        if self.logger:
+            self.logger.log_phase_end(context.current_turn, phase)
 
     def _get_active_item_effects(
         self,
