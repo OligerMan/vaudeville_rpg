@@ -88,6 +88,9 @@ class DungeonService:
 
         await self.session.flush()
 
+        # Reload dungeon with enemies to avoid lazy loading issues
+        dungeon = await self._get_dungeon_with_enemies(dungeon.id)
+
         # Start first duel
         result = await self._start_stage_duel(dungeon, player_id)
         if not result.success:

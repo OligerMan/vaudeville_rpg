@@ -160,7 +160,7 @@ class DuelService:
         """Check if player is in an active duel."""
         stmt = (
             select(Duel)
-            .join(DuelParticipant)
+            .join(DuelParticipant, Duel.id == DuelParticipant.duel_id)
             .where(
                 DuelParticipant.player_id == player_id,
                 Duel.status.in_([DuelStatus.PENDING, DuelStatus.IN_PROGRESS]),

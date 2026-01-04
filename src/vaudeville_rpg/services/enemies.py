@@ -1,6 +1,7 @@
 """Enemy generator - creates bot players for dungeons."""
 
 import random
+import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,9 +71,12 @@ class EnemyGenerator:
         hp = base_hp + (stage - 1) * self._get_hp_scaling(difficulty)
         sp = base_sp + (stage - 1) * self._get_sp_scaling(difficulty)
 
-        # Create bot player
+        # Create bot player with unique negative telegram_user_id
+        # Use negative timestamp + random to avoid unique constraint conflicts
+        unique_bot_id = -(int(time.time() * 1000000) + random.randint(0, 999999))
+
         enemy = Player(
-            telegram_user_id=0,  # Bot players have 0 telegram ID
+            telegram_user_id=unique_bot_id,
             setting_id=setting_id,
             display_name=name,
             max_hp=hp,

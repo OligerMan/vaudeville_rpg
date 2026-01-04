@@ -14,7 +14,7 @@ from ..db.models.enums import (
     ItemSlot,
     TargetType,
 )
-from ..db.models.items import Item, ItemEffect
+from ..db.models.items import Item
 from ..db.models.settings import Setting
 from ..llm import (
     EffectTemplateGenerator,
@@ -315,35 +315,48 @@ class ContentGenerationService:
             if gen_action.attribute:
                 action_data["attribute"] = gen_action.attribute
 
+            target = TargetType.SELF if gen_action.target == "self" else TargetType.ENEMY
+
             action = Action(
                 setting_id=setting_id,
                 name=f"{item.name}_{i}_action".lower().replace(" ", "_"),
                 action_type=action_type,
-                target=TargetType.SELF if gen_action.target == "self" else TargetType.ENEMY,
+                target=target,
                 action_data=action_data,
             )
             self.session.add(action)
             await self.session.flush()
 
-            # Create effect (no condition - triggers on item use)
+            # Create condition based on item slot
+            phase_map = {
+                ItemSlot.ATTACK: ConditionPhase.PRE_ATTACK.value,
+                ItemSlot.DEFENSE: ConditionPhase.PRE_DAMAGE.value,
+                ItemSlot.MISC: ConditionPhase.PRE_MOVE.value,
+            }
+            phase = phase_map.get(slot, ConditionPhase.PRE_MOVE.value)
+
+            condition = Condition(
+                setting_id=setting_id,
+                name=f"{item.name}_{i}_condition".lower().replace(" ", "_"),
+                condition_type=ConditionType.PHASE,
+                condition_data={"phase": phase},
+            )
+            self.session.add(condition)
+            await self.session.flush()
+
+            # Create effect with item_id set directly
             effect = Effect(
                 setting_id=setting_id,
                 name=f"{item.name}_{i}_effect".lower().replace(" ", "_"),
                 description=f"{gen_action.action_type} effect",
-                condition_id=None,
+                condition_id=condition.id,
                 action_id=action.id,
+                target=target,
                 category=EffectCategory.ITEM_EFFECT,
+                item_id=item.id,
             )
             self.session.add(effect)
             await self.session.flush()
-
-            # Link effect to item
-            item_effect = ItemEffect(
-                item_id=item.id,
-                effect_id=effect.id,
-                priority=i,
-            )
-            self.session.add(item_effect)
 
         return item
 

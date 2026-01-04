@@ -86,21 +86,9 @@ class TurnResolver:
             return result
 
         # Phase 2: Action resolution (PRE_ATTACK → ATTACK → POST_ATTACK)
+        # Note: Attack effects are already included in all_effects via _get_active_item_effects
+        # They will be processed in PRE_ATTACK phase based on their condition
         self._process_phase_for_all(ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result)
-
-        # Execute actual attacks from actions
-        for participant_id, action in action_map.items():
-            if action.action_type != DuelActionType.SKIP:
-                attack_effects = self._get_attack_effects_from_action(participant_id, action, participant_items.get(participant_id, {}))
-                for effect in attack_effects:
-                    phase_results = self.effect_processor.process_phase(
-                        ConditionPhase.PRE_ATTACK,  # Attack effects trigger at attack phase
-                        [effect],
-                        context,
-                        all_conditions,
-                    )
-                    result.effects_applied.extend(phase_results)
-
         self._process_phase_for_all(ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result)
 
         # Phase 3: Damage resolution (PRE_DAMAGE → apply → POST_DAMAGE)
@@ -172,26 +160,43 @@ class TurnResolver:
     ) -> list[EffectData]:
         """Get effects from items that are active this turn.
 
-        All equipped items' passive effects are always active.
-        Active abilities trigger based on the action chosen.
+        Only returns effects from items that are being used this turn.
+        The item slot is determined by the action type.
         """
         effects: list[EffectData] = []
 
-        for slot, item in items.items():
-            for effect in item.effects:
-                # Set owner
-                effect_with_owner = EffectData(
-                    id=effect.id,
-                    name=effect.name,
-                    condition_type=effect.condition_type,
-                    condition_data=effect.condition_data,
-                    target=effect.target,
-                    category=effect.category,
-                    action_type=effect.action_type,
-                    action_data=effect.action_data,
-                    owner_participant_id=participant_id,
-                )
-                effects.append(effect_with_owner)
+        # If no action or skip, no item effects trigger
+        if action is None or action.action_type == DuelActionType.SKIP:
+            return effects
+
+        # Map action type to item slot
+        slot_map = {
+            DuelActionType.ATTACK: ItemSlot.ATTACK,
+            DuelActionType.DEFENSE: ItemSlot.DEFENSE,
+            DuelActionType.MISC: ItemSlot.MISC,
+        }
+
+        active_slot = slot_map.get(action.action_type)
+        if active_slot is None:
+            return effects
+
+        item = items.get(active_slot)
+        if item is None:
+            return effects
+
+        for effect in item.effects:
+            effect_with_owner = EffectData(
+                id=effect.id,
+                name=effect.name,
+                condition_type=effect.condition_type,
+                condition_data=effect.condition_data,
+                target=effect.target,
+                category=effect.category,
+                action_type=effect.action_type,
+                action_data=effect.action_data,
+                owner_participant_id=participant_id,
+            )
+            effects.append(effect_with_owner)
 
         return effects
 
