@@ -1,7 +1,7 @@
 """Duel engine - orchestrates the full duel flow."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,9 @@ from .effects import EffectData
 from .turn import ItemData, ParticipantAction, TurnResolver
 from .types import CombatState, DuelContext, TurnResult
 
+if TYPE_CHECKING:
+    from .logging import CombatLog, CombatLogger
+
 
 @dataclass
 class DuelResult:
@@ -27,14 +30,20 @@ class DuelResult:
     duel_id: int | None = None
     turn_result: TurnResult | None = None
     rating_change: RatingChange | None = None
+    combat_log: "CombatLog | None" = None
 
 
 class DuelEngine:
     """Main duel engine - orchestrates duels from start to finish."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        logger: "CombatLogger | None" = None,
+    ) -> None:
         self.session = session
-        self.turn_resolver = TurnResolver()
+        self.logger = logger
+        self.turn_resolver = TurnResolver(logger=logger)
 
     async def create_duel(
         self,
@@ -197,12 +206,16 @@ class DuelEngine:
 
         await self.session.commit()
 
+        # Get combat log if logger is active
+        combat_log = self.logger.get_log() if self.logger else None
+
         return DuelResult(
             success=True,
             message="Turn resolved",
             duel_id=duel_id,
             turn_result=turn_result,
             rating_change=rating_change,
+            combat_log=combat_log,
         )
 
     async def cancel_duel(self, duel_id: int) -> DuelResult:

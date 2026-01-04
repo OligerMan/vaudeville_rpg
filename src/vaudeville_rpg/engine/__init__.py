@@ -2,8 +2,9 @@
 
 from .actions import ActionExecutor
 from .conditions import ConditionEvaluator
-from .duel import DuelEngine
+from .duel import DuelEngine, DuelResult
 from .effects import EffectProcessor
+from .logging import CombatLog, CombatLogger, LogEntry, LogEventType, StateSnapshot
 from .turn import TurnResolver
 
 __all__ = [
@@ -12,4 +13,10 @@ __all__ = [
     "EffectProcessor",
     "TurnResolver",
     "DuelEngine",
+    "DuelResult",
+    "CombatLogger",
+    "CombatLog",
+    "LogEntry",
+    "LogEventType",
+    "StateSnapshot",
 ]
