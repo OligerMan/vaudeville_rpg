@@ -142,9 +142,7 @@ class LogEntry:
         if self.description is not None:
             result["description"] = self.description
         if self.all_states is not None:
-            result["all_states"] = {
-                pid: state.to_dict() for pid, state in self.all_states.items()
-            }
+            result["all_states"] = {pid: state.to_dict() for pid, state in self.all_states.items()}
         if self.winner_participant_id is not None:
             result["winner_participant_id"] = self.winner_participant_id
 
@@ -226,17 +224,12 @@ class CombatLog:
                 )
 
             case LogEventType.EFFECT_SKIPPED:
-                return (
-                    f"    ✗ Effect '{entry.effect_name}' skipped "
-                    f"(condition not met: {entry.reason})"
-                )
+                return f"    ✗ Effect '{entry.effect_name}' skipped (condition not met: {entry.reason})"
 
             case LogEventType.ACTION_EXECUTED:
                 hp_change = ""
                 if entry.state_before and entry.state_after:
-                    hp_diff = (
-                        entry.state_after.current_hp - entry.state_before.current_hp
-                    )
+                    hp_diff = entry.state_after.current_hp - entry.state_before.current_hp
                     if hp_diff != 0:
                         hp_change = f" [HP: {entry.state_before.current_hp} → {entry.state_after.current_hp}]"
 
@@ -248,21 +241,13 @@ class CombatLog:
                 )
 
             case LogEventType.PENDING_DAMAGE_APPLIED:
-                return (
-                    f"    → Pending damage applied to P{entry.target_participant_id}: "
-                    f"{entry.value} damage"
-                )
+                return f"    → Pending damage applied to P{entry.target_participant_id}: {entry.value} damage"
 
             case LogEventType.STATE_SNAPSHOT:
                 if entry.all_states:
                     state_lines = []
                     for pid, state in entry.all_states.items():
-                        stacks_str = (
-                            ", ".join(
-                                f"{k}:{v}" for k, v in state.attribute_stacks.items()
-                            )
-                            or "none"
-                        )
+                        stacks_str = ", ".join(f"{k}:{v}" for k, v in state.attribute_stacks.items()) or "none"
                         state_lines.append(
                             f"      P{pid}: HP={state.current_hp}/{state.max_hp}, "
                             f"SP={state.current_special_points}/{state.max_special_points}, "
@@ -335,9 +320,7 @@ class CombatLogger:
                 event_type=LogEventType.TURN_START,
                 turn_number=turn_number,
                 timestamp_order=self._next_order(),
-                all_states={
-                    pid: self.snapshot_state(state) for pid, state in states.items()
-                },
+                all_states={pid: self.snapshot_state(state) for pid, state in states.items()},
             )
         )
 
@@ -348,9 +331,7 @@ class CombatLogger:
                 event_type=LogEventType.TURN_END,
                 turn_number=turn_number,
                 timestamp_order=self._next_order(),
-                all_states={
-                    pid: self.snapshot_state(state) for pid, state in states.items()
-                },
+                all_states={pid: self.snapshot_state(state) for pid, state in states.items()},
             )
         )
 
@@ -478,9 +459,7 @@ class CombatLogger:
             )
         )
 
-    def log_state_snapshot(
-        self, turn_number: int, phase: ConditionPhase | None, states: dict[int, Any]
-    ) -> None:
+    def log_state_snapshot(self, turn_number: int, phase: ConditionPhase | None, states: dict[int, Any]) -> None:
         """Log a state snapshot for all participants."""
         self._log.entries.append(
             LogEntry(
@@ -488,9 +467,7 @@ class CombatLogger:
                 turn_number=turn_number,
                 phase=phase,
                 timestamp_order=self._next_order(),
-                all_states={
-                    pid: self.snapshot_state(state) for pid, state in states.items()
-                },
+                all_states={pid: self.snapshot_state(state) for pid, state in states.items()},
             )
         )
 

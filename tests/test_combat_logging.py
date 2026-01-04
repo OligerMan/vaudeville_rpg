@@ -1,7 +1,5 @@
 """Tests for the combat logging system."""
 
-import pytest
-
 from vaudeville_rpg.db.models.enums import (
     ConditionPhase,
     ConditionType,
@@ -949,7 +947,7 @@ class TestLogFormatting:
         assert "sword_attack" in output
         assert "15" in output
         assert "100" in output  # HP before
-        assert "85" in output   # HP after
+        assert "85" in output  # HP after
 
     def test_format_state_snapshot(self):
         """Test formatting state snapshot."""

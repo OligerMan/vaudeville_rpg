@@ -130,7 +130,6 @@ class TurnResolver:
 
                     # Log pending damage application
                     if self.logger:
-                        from .logging import StateSnapshot
                         from .types import CombatState
 
                         # Create a temporary state object for the before snapshot
@@ -204,9 +203,7 @@ class TurnResolver:
         for effects in all_effects.values():
             combined.extend(effects)
 
-        phase_results = self.effect_processor.process_phase(
-            phase, combined, context, all_conditions, context.current_turn
-        )
+        phase_results = self.effect_processor.process_phase(phase, combined, context, all_conditions, context.current_turn)
         result.effects_applied.extend(phase_results)
 
         # Log phase end
