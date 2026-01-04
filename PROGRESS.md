@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `master`
-**Last Updated:** 2026-01-04
-**Last Commit:** Merge branch 'feature/generation-pipeline'
+**Branch:** `feature/engine-logging`
+**Last Updated:** 2026-01-05
+**Last Commit:** Combat logging system
 
 ### Completed Phases
 
@@ -32,6 +32,48 @@ This file tracks development progress to restore context between sessions.
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-05
+
+**Completed:** Combat Logging System for Integration Testing
+
+#### What Was Done
+1. Created `feature/engine-logging` branch
+2. Added logging data structures (`src/vaudeville_rpg/engine/logging.py`):
+   - `LogEventType`: enum for event types (turn/phase/effect/action/state)
+   - `StateSnapshot`: captures combat state at a point in time
+   - `LogEntry`: structured log entry with all relevant fields
+   - `CombatLog`: collection with filtering and formatting methods
+   - `CombatLogger`: main class for tracking combat events
+
+3. Integrated logging into engine components:
+   - `TurnResolver`: logs turn start/end, phase transitions, pending damage, winner
+   - `EffectProcessor`: logs effect evaluations (pass/fail), action executions
+   - `DuelEngine`: accepts optional logger, returns combat log in results
+
+4. Added comprehensive tests (`tests/test_combat_logging.py`):
+   - 38 new tests covering all logging functionality
+   - Tests for data structures, logger methods, and integration
+
+#### Key Files Added/Modified
+- `src/vaudeville_rpg/engine/logging.py` (506 lines) - NEW
+- `src/vaudeville_rpg/engine/turn.py` (modified)
+- `src/vaudeville_rpg/engine/effects.py` (modified)
+- `src/vaudeville_rpg/engine/duel.py` (modified)
+- `src/vaudeville_rpg/engine/__init__.py` (exports)
+- `tests/test_combat_logging.py` (1000 lines) - NEW
+
+#### Test Coverage
+- **Total tests:** 215 passing (38 new logging tests)
+
+#### Log Output Features
+- Every action logged with: target (participant ID), reason (effect name), effect (HP/attribute changes)
+- Phase transitions logged (PRE_MOVE, POST_MOVE, PRE_ATTACK, etc.)
+- State snapshots with HP, SP, and attribute stacks
+- Human-readable formatting with `format_readable()`
+- Dictionary serialization with `to_dict()`
+
+---
 
 ### Session: 2026-01-04
 
@@ -188,6 +230,7 @@ ConditionEvaluator + ActionExecutor
 | `EffectProcessor` | Collects and executes effects by phase |
 | `ConditionEvaluator` | Checks if effect conditions are met |
 | `ActionExecutor` | Applies actions to combat state |
+| `CombatLogger` | Tracks combat events for debugging/testing |
 
 ---
 
@@ -236,6 +279,7 @@ python -m vaudeville_rpg
 | Branch | Status | Description |
 |--------|--------|-------------|
 | `master` | Active | Main development branch |
+| `feature/engine-logging` | Ready | Combat logging for integration testing |
 | `feature/generation-pipeline` | Merged | Validation and parsing layer |
 | `feature/item-content` | Merged | LLM content generation system |
 | `feature/rating-system` | Merged | Rating system and leaderboard |
