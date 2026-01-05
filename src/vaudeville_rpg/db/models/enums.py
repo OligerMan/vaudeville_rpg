@@ -76,6 +76,20 @@ class EffectCategory(str, Enum):
     WORLD_RULE = "world_rule"  # Effect is a setting-level rule
 
 
+class TurnPhase(str, Enum):
+    """Phase of the current turn in the state machine.
+
+    The turn flows through these phases:
+    1. NOT_STARTED - Turn hasn't begun yet
+    2. PRE_MOVE_COMPLETE - PRE_MOVE effects processed, waiting for player actions
+    3. COMBAT_COMPLETE - Combat resolved, ready for next turn
+    """
+
+    NOT_STARTED = "not_started"  # Turn hasn't begun processing
+    PRE_MOVE_COMPLETE = "pre_move_complete"  # PRE_MOVE done, waiting for actions
+    COMBAT_COMPLETE = "combat_complete"  # Combat resolved, turn finished
+
+
 class DuelStatus(str, Enum):
     """Status of a duel."""
 

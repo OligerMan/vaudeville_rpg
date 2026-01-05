@@ -862,26 +862,40 @@ class TestComplexWorldEffects:
         assert not result.is_duel_over
 
     def test_armor_reduces_and_decays(self):
-        """Test armor reduces damage at PRE_DAMAGE and decays at POST_DAMAGE."""
-        state1 = self._create_combat_state(1, 10, stacks={"armor": 3})
+        """Test armor reduces damage at PRE_DAMAGE (interrupt) and decays at POST_MOVE."""
+        # Player 1 has armor and poison (poison will trigger damage -> PRE_DAMAGE interrupt)
+        state1 = self._create_combat_state(1, 10, stacks={"armor": 3, "poison": 1})
         state2 = self._create_combat_state(2, 20)
         context = self._create_context(state1, state2)
 
-        # Armor reduction at PRE_DAMAGE, armor decay at POST_DAMAGE
+        # Poison tick at PRE_MOVE (triggers damage -> PRE_DAMAGE interrupt)
+        # Armor reduction at PRE_DAMAGE (interrupt)
+        # Armor decay at POST_MOVE (sequential phase)
         world_rules = [
             EffectData(
                 id=1,
+                name="a_poison_tick",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [100, 105]},
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+                action_type="damage",
+                action_data={"value": 10},  # 10 damage
+                owner_participant_id=0,
+            ),
+            EffectData(
+                id=2,
                 name="armor_reduction",
                 condition_type=ConditionType.AND,
                 condition_data={"condition_ids": [101, 102]},
                 target=TargetType.SELF,
                 category=EffectCategory.WORLD_RULE,
                 action_type="reduce_incoming_damage",
-                action_data={"value": 5},  # 5 reduction per armor
+                action_data={"value": 5},  # 5 reduction per call (we have 3 armor)
                 owner_participant_id=0,
             ),
             EffectData(
-                id=2,
+                id=3,
                 name="armor_decay",
                 condition_type=ConditionType.AND,
                 condition_data={"condition_ids": [103, 104]},
@@ -894,9 +908,11 @@ class TestComplexWorldEffects:
         ]
 
         all_conditions = {
+            100: (ConditionType.PHASE, {"phase": "pre_move"}),
+            105: (ConditionType.HAS_STACKS, {"attribute": "poison", "min_count": 1}),
             101: (ConditionType.PHASE, {"phase": "pre_damage"}),
             102: (ConditionType.HAS_STACKS, {"attribute": "armor", "min_count": 1}),
-            103: (ConditionType.PHASE, {"phase": "post_damage"}),
+            103: (ConditionType.PHASE, {"phase": "post_move"}),  # Changed to POST_MOVE
             104: (ConditionType.HAS_STACKS, {"attribute": "armor", "min_count": 1}),
         }
 
@@ -913,10 +929,10 @@ class TestComplexWorldEffects:
             all_conditions=all_conditions,
         )
 
-        # Player 1 has armor, should have damage reduction set and armor decayed
-        assert state1.get_stacks("armor") == 2  # Decayed from 3 to 2
-        # HP unchanged since no actual damage was dealt this turn
-        assert state1.current_hp == 100
+        # Player 1 has armor, which should reduce damage and then decay at end of turn
+        assert state1.get_stacks("armor") == 2  # Decayed from 3 to 2 at POST_MOVE
+        # Poison dealt 10 damage, armor reduced by 5, so 5 damage taken (100 - 5 = 95)
+        assert state1.current_hp == 95
 
     def test_multiple_dot_effects(self):
         """Test multiple damage-over-time effects (poison + burn)."""

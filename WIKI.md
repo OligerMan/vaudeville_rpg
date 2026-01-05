@@ -15,8 +15,9 @@ Duel {
   id: int
   setting_id: int              # Which setting this duel is in
   status: DuelStatus           # PENDING, IN_PROGRESS, COMPLETED, CANCELLED
-  winner_participant_id: int?  # Which participant won (null if not finished)
   current_turn: int            # Current turn number (starts at 1)
+  current_phase: TurnPhase     # NOT_STARTED, PRE_MOVE_COMPLETE, COMBAT_COMPLETE
+  winner_participant_id: int?  # Which participant won (null if not finished)
 }
 ```
 
@@ -64,21 +65,56 @@ PENDING → IN_PROGRESS → COMPLETED
 
 ### Turn Structure
 
-Duels are **turn-based** with **simultaneous action selection**:
+Duels are **turn-based** with a **state machine** that allows players to see PRE_MOVE effects before choosing actions:
 
-1. **Action Selection Phase**
-   - Both players choose their actions **hidden** from each other
+#### Turn Phases (State Machine)
+
+```
+NOT_STARTED → PRE_MOVE_COMPLETE → COMBAT_COMPLETE → (next turn)
+```
+
+| Phase | Description |
+|-------|-------------|
+| `NOT_STARTED` | Turn hasn't begun processing |
+| `PRE_MOVE_COMPLETE` | PRE_MOVE effects processed, waiting for player actions |
+| `COMBAT_COMPLETE` | Combat resolved, turn finished |
+
+#### Turn Flow
+
+1. **PRE_MOVE Phase** (automatic)
+   - Triggered when first player polls turn state or submits action
+   - World rules process (poison damage, regeneration, etc.)
+   - No item effects yet (actions not submitted)
+   - Players can see results before choosing action
+
+2. **Action Selection**
+   - Both players choose actions **after** seeing PRE_MOVE results
    - Each player submits one action (ATTACK, DEFENSE, MISC, or SKIP)
    - Player marked as `is_ready = true` after submitting
 
-2. **Resolution Phase** (when both ready)
-   - PRE_MOVE effects trigger
-   - Both actions revealed and applied **simultaneously**
-   - PRE_ATTACK → ATTACK → POST_ATTACK effects
-   - PRE_DAMAGE → DAMAGE → POST_DAMAGE effects
-   - POST_MOVE effects trigger
+3. **Combat Phase** (when both ready)
+   - PRE_ATTACK effects trigger (item abilities activate)
+   - POST_ATTACK effects trigger
+   - POST_MOVE effects trigger (stack decay)
    - Check win condition (any player HP = 0)
    - Advance to next turn or end duel
+
+#### Damage Interrupt System
+
+**Important:** PRE_DAMAGE and POST_DAMAGE are **NOT sequential phases**. They are **interrupts** that trigger whenever damage is applied, from any source:
+
+```
+Damage Event (poison, attack, effect)
+    ↓
+1. Check if interrupts blocked → if yes, apply damage instantly
+2. Block interrupts (prevent recursion)
+3. Process PRE_DAMAGE effects (can add damage reduction)
+4. Apply actual damage to HP (with reduction)
+5. Process POST_DAMAGE effects (can trigger revenge damage)
+6. Unblock interrupts
+```
+
+This prevents infinite loops: if PRE_DAMAGE or POST_DAMAGE effects deal additional damage, that damage applies **instantly** without triggering more PRE/POST_DAMAGE effects.
 
 ### Action Types
 
@@ -181,14 +217,22 @@ Effect {
 Conditions define **when** an effect triggers.
 
 #### Condition Phases
+
+**Sequential Phases** (processed in order during turn):
 | Phase | Description |
 |-------|-------------|
-| `PRE_ATTACK` | Before attack is resolved |
+| `PRE_MOVE` | Before turn actions resolve (world rules only) |
+| `PRE_ATTACK` | Before attack is resolved (item effects activate here) |
 | `POST_ATTACK` | After attack is resolved |
-| `PRE_DAMAGE` | Before damage is applied |
-| `POST_DAMAGE` | After damage is applied |
-| `PRE_MOVE` | Before turn actions resolve |
-| `POST_MOVE` | After turn actions resolve |
+| `POST_MOVE` | After turn actions resolve (stack decay) |
+
+**Interrupt Phases** (triggered on every damage event):
+| Phase | Description |
+|-------|-------------|
+| `PRE_DAMAGE` | Before damage is applied - can add damage reduction |
+| `POST_DAMAGE` | After damage is applied - can trigger revenge/counter effects |
+
+**Note:** PRE_DAMAGE and POST_DAMAGE are NOT processed sequentially. They trigger as **interrupts** whenever any damage event occurs (poison, attacks, effect damage). See the Damage Interrupt System section above.
 
 #### Condition Composition
 Conditions can be combined using AND/OR logic:
@@ -266,7 +310,9 @@ Effect {
 
 ### Example 3: Armor World Rules
 
-**Armor Damage Reduction:**
+Armor effects use the **damage interrupt system** - they trigger automatically whenever damage is applied to someone with armor stacks.
+
+**Armor Damage Reduction (PRE_DAMAGE interrupt):**
 ```
 Effect {
   name: "armor_reduction"
@@ -277,7 +323,7 @@ Effect {
 }
 ```
 
-**Armor Decay on Hit:**
+**Armor Decay on Hit (POST_DAMAGE interrupt):**
 ```
 Effect {
   name: "armor_decay"
@@ -287,6 +333,12 @@ Effect {
   action: remove_stacks("armor", 1)
 }
 ```
+
+**How it works:** When poison deals 5 damage to a player with 3 armor:
+1. PRE_DAMAGE triggers: armor reduces damage by 3 (3 stacks × 1 reduction)
+2. Actual damage applied: 5 - 3 = 2 HP lost
+3. POST_DAMAGE triggers: armor loses 1 stack (now 2 stacks)
+4. Next damage event will have 2 stacks of armor for reduction
 
 ---
 
@@ -999,8 +1051,14 @@ Converts item definitions into:
 
 ### Item Slot to Phase Mapping
 
-| Slot | Trigger Phase |
-|------|---------------|
-| Attack | PRE_ATTACK |
-| Defense | PRE_DAMAGE |
-| Misc | PRE_MOVE |
+Item effects trigger during combat phases when the item is used:
+
+| Slot | Trigger Phase | Description |
+|------|---------------|-------------|
+| Attack | PRE_ATTACK | Offensive abilities (damage, debuffs) |
+| Defense | PRE_ATTACK | Defensive buffs applied before attacks resolve |
+| Misc | PRE_ATTACK | Utility effects (heals, buffs) when item is used |
+
+**Note:** All item effects trigger during the **combat phase** (PRE_ATTACK), not PRE_MOVE. PRE_MOVE only processes world rules (passive effects like poison damage) before players submit their actions.
+
+For damage reduction effects (armor), use PRE_DAMAGE as an interrupt condition - this triggers automatically whenever damage is about to be applied.

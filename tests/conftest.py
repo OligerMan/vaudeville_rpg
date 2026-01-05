@@ -281,11 +281,11 @@ async def misc_item(db_session: AsyncSession, setting: Setting) -> Item:
     db_session.add(action)
     await db_session.flush()
 
-    # Create phase condition
+    # Create phase condition - PRE_ATTACK so heal triggers when item is used
     condition = Condition(
         name="potion_condition",
         condition_type=ConditionType.PHASE,
-        condition_data={"phase": ConditionPhase.PRE_MOVE.value},
+        condition_data={"phase": ConditionPhase.PRE_ATTACK.value},
     )
     db_session.add(condition)
     await db_session.flush()
@@ -374,7 +374,7 @@ async def _create_defense_item(db_session: AsyncSession, setting: Setting, suffi
     condition = Condition(
         name=f"shield_condition_{suffix}",
         condition_type=ConditionType.PHASE,
-        condition_data={"phase": ConditionPhase.PRE_DAMAGE.value},
+        condition_data={"phase": ConditionPhase.PRE_ATTACK.value},
     )
     db_session.add(condition)
     await db_session.flush()
@@ -418,7 +418,7 @@ async def _create_misc_item(db_session: AsyncSession, setting: Setting, suffix: 
     condition = Condition(
         name=f"potion_condition_{suffix}",
         condition_type=ConditionType.PHASE,
-        condition_data={"phase": ConditionPhase.PRE_MOVE.value},
+        condition_data={"phase": ConditionPhase.PRE_ATTACK.value},
     )
     db_session.add(condition)
     await db_session.flush()

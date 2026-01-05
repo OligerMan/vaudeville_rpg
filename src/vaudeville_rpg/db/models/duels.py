@@ -5,7 +5,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
-from .enums import DuelActionType, DuelStatus
+from .enums import DuelActionType, DuelStatus, TurnPhase
 
 
 class Duel(Base, TimestampMixin):
@@ -22,6 +22,7 @@ class Duel(Base, TimestampMixin):
     # Duel state
     status: Mapped[DuelStatus] = mapped_column(SQLEnum(DuelStatus, name="duel_status"), nullable=False, default=DuelStatus.PENDING)
     current_turn: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    current_phase: Mapped[TurnPhase] = mapped_column(SQLEnum(TurnPhase, name="turn_phase"), nullable=False, default=TurnPhase.NOT_STARTED)
 
     # Winner (null until duel is completed)
     winner_participant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("duel_participants.id", use_alter=True), nullable=True)

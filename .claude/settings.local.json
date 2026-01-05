@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python -m ruff check:*)",
+      "Bash(python -m ruff format:*)",
+      "Bash(.venv/Scripts/activate)",
+      "Bash(pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(git branch:*)",
+      "Bash(.venv/Scripts/python -m pytest tests/ -v --tb=short)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_integration_duels.py -v --tb=long)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_integration_duels.py -v --tb=short)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_integration_duels.py::TestDuelEngine::test_submit_action_and_resolve_turn -v --tb=long)",
+      "Bash(.venv/Scripts/python -m pytest tests/ -q)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_combat_logging.py -v --tb=short)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"$p = New-Object -ComObject WMPlayer.OCX; $p.settings.volume = 100; $p.URL = 'C:/Windows/Media/Windows Proximity Notification.wav'; Start-Sleep -Milliseconds 1500\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -Command \"$p = New-Object -ComObject WMPlayer.OCX; $p.settings.volume = 100; $p.URL = 'C:/Windows/Media/Windows Proximity Notification.wav'; Start-Sleep -Milliseconds 1500\""
+          }
+        ]
+      }
+    ]
+  }
+}
