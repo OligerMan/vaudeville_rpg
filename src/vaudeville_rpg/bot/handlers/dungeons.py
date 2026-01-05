@@ -8,7 +8,6 @@ from sqlalchemy import select
 from ...db.engine import async_session_factory
 from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
 from ...db.models.items import Item
-from ...db.models.players import Player
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
 
@@ -106,9 +105,7 @@ def get_reward_keyboard(reward_item_id: int, player_id: int) -> InlineKeyboardMa
     )
 
 
-def format_reward_comparison(
-    reward_item: Item, current_item: Item | None, slot_name: str
-) -> str:
+def format_reward_comparison(reward_item: Item, current_item: Item | None, slot_name: str) -> str:
     """Format reward item comparison with current equipped item."""
     rarity = RARITY_NAMES.get(reward_item.rarity, "Unknown")
 
