@@ -90,6 +90,10 @@ class DuelContext:
     current_turn: int
     states: dict[int, CombatState]  # participant_id -> CombatState
 
+    # Interrupt system flag - when True, damage is applied instantly without
+    # triggering PRE_DAMAGE/POST_DAMAGE effects (prevents infinite loops)
+    damage_interrupts_blocked: bool = False
+
     def get_opponent_state(self, participant_id: int) -> CombatState:
         """Get the opponent's combat state."""
         for pid, state in self.states.items():
