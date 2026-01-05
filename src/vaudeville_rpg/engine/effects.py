@@ -9,6 +9,7 @@ from .conditions import ConditionEvaluator
 from .types import ActionContext, CombatState, DuelContext, EffectResult
 
 if TYPE_CHECKING:
+    from .interrupts import DamageInterruptHandler
     from .logging import CombatLogger
 
 
@@ -30,10 +31,31 @@ class EffectData:
 class EffectProcessor:
     """Processes effects for a phase, collecting and executing them in order."""
 
-    def __init__(self, logger: "CombatLogger | None" = None) -> None:
+    def __init__(
+        self,
+        logger: "CombatLogger | None" = None,
+        interrupt_handler: "DamageInterruptHandler | None" = None,
+    ) -> None:
+        """Initialize the effect processor.
+
+        Args:
+            logger: Optional combat logger for event tracking
+            interrupt_handler: Optional handler for damage interrupt processing.
+                If provided, damage/attack actions will trigger PRE/POST_DAMAGE phases.
+        """
         self.logger = logger
+        self.interrupt_handler = interrupt_handler
         self.condition_evaluator = ConditionEvaluator()
-        self.action_executor = ActionExecutor()
+        self.action_executor = ActionExecutor(interrupt_handler=interrupt_handler)
+
+    def set_interrupt_handler(self, handler: "DamageInterruptHandler") -> None:
+        """Set or update the interrupt handler.
+
+        This is useful when the handler needs to be set after creation
+        due to circular references (handler needs processor, processor needs handler).
+        """
+        self.interrupt_handler = handler
+        self.action_executor.interrupt_handler = handler
 
     def process_phase(
         self,
