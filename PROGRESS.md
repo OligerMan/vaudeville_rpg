@@ -6,9 +6,9 @@ This file tracks development progress to restore context between sessions.
 
 ## Current State
 
-**Branch:** `feature/engine-logging`
+**Branch:** `master`
 **Last Updated:** 2026-01-05
-**Last Commit:** Combat logging system
+**Last Commit:** Merge branch 'feature/phase-system-refactor'
 
 ### Completed Phases
 
@@ -35,43 +35,49 @@ This file tracks development progress to restore context between sessions.
 
 ### Session: 2026-01-05
 
-**Completed:** Combat Logging System for Integration Testing
+**Completed:** Phase System Refactor & Combat Logging (MERGED)
 
 #### What Was Done
-1. Created `feature/engine-logging` branch
-2. Added logging data structures (`src/vaudeville_rpg/engine/logging.py`):
+1. Created `feature/phase-system-refactor` branch (built on engine-logging work)
+
+2. **Combat Logging System** (`src/vaudeville_rpg/engine/logging.py`):
    - `LogEventType`: enum for event types (turn/phase/effect/action/state)
    - `StateSnapshot`: captures combat state at a point in time
    - `LogEntry`: structured log entry with all relevant fields
    - `CombatLog`: collection with filtering and formatting methods
    - `CombatLogger`: main class for tracking combat events
 
-3. Integrated logging into engine components:
-   - `TurnResolver`: logs turn start/end, phase transitions, pending damage, winner
-   - `EffectProcessor`: logs effect evaluations (pass/fail), action executions
-   - `DuelEngine`: accepts optional logger, returns combat log in results
+3. **Phase System Refactor** - State machine architecture:
+   - `DamageInterruptHandler`: manages PRE/POST_DAMAGE interrupt flow
+   - Split `TurnResolver` into `resolve_pre_move()` and `resolve_combat()`
+   - Added `TurnPhase` enum and `current_phase` column on Duel model
+   - PRE_DAMAGE/POST_DAMAGE effects only trigger for damage recipient
+   - Updated `DuelEngine` API for state machine flow
 
-4. Added comprehensive tests (`tests/test_combat_logging.py`):
-   - 38 new tests covering all logging functionality
-   - Tests for data structures, logger methods, and integration
+4. **Database Migration**:
+   - `006_add_turn_phase_to_duels.py`: adds `current_phase` column
+
+5. **Comprehensive Tests**:
+   - `tests/test_combat_logging.py` (1003 lines)
+   - `tests/test_interrupts.py` (568 lines)
+   - `tests/test_logging_integration.py` (621 lines)
 
 #### Key Files Added/Modified
-- `src/vaudeville_rpg/engine/logging.py` (506 lines) - NEW
-- `src/vaudeville_rpg/engine/turn.py` (modified)
-- `src/vaudeville_rpg/engine/effects.py` (modified)
-- `src/vaudeville_rpg/engine/duel.py` (modified)
-- `src/vaudeville_rpg/engine/__init__.py` (exports)
-- `tests/test_combat_logging.py` (1000 lines) - NEW
+- `src/vaudeville_rpg/engine/logging.py` (553 lines) - NEW
+- `src/vaudeville_rpg/engine/interrupts.py` (208 lines) - NEW
+- `src/vaudeville_rpg/engine/turn.py` (major refactor)
+- `src/vaudeville_rpg/engine/duel.py` (state machine API)
+- `src/vaudeville_rpg/engine/effects.py` (interrupt support)
+- `src/vaudeville_rpg/engine/actions.py` (interrupt handler)
+- `src/vaudeville_rpg/db/models/duels.py` (TurnPhase column)
+- `src/vaudeville_rpg/db/models/enums.py` (TurnPhase enum)
 
 #### Test Coverage
-- **Total tests:** 215 passing (38 new logging tests)
+- **Total tests:** 235 passing
+- New tests: ~90 (logging, interrupts, integration)
 
-#### Log Output Features
-- Every action logged with: target (participant ID), reason (effect name), effect (HP/attribute changes)
-- Phase transitions logged (PRE_MOVE, POST_MOVE, PRE_ATTACK, etc.)
-- State snapshots with HP, SP, and attribute stacks
-- Human-readable formatting with `format_readable()`
-- Dictionary serialization with `to_dict()`
+#### Branch Status
+- Merged to `master` on 2026-01-05
 
 ---
 
@@ -202,18 +208,24 @@ Step 5: ItemFactory → Database Items
     PipelineResult (validated content)
 ```
 
-### Duel Engine Flow
+### Duel Engine Flow (State Machine)
 ```
 DuelEngine.submit_action()
     ↓
-TurnResolver.resolve_turn()
+TurnResolver.resolve_pre_move()     ← PRE_MOVE phase (poison, buffs)
     ↓
-Phase Processing:
-    1. PRE_MOVE (poison tick, buffs)
-    2. PRE_ATTACK → ATTACK → POST_ATTACK
-    3. PRE_DAMAGE → DAMAGE → POST_DAMAGE
-    4. POST_MOVE (stack decay)
-    5. Win condition check
+TurnResolver.resolve_combat()       ← Combat resolution
+    ↓
+Phase Processing with Interrupts:
+    1. PRE_ATTACK → ATTACK → POST_ATTACK (per participant)
+    2. For each damage event:
+       - DamageInterruptHandler.begin_damage()
+       - PRE_DAMAGE (recipient only)
+       - DAMAGE applied
+       - POST_DAMAGE (recipient only)
+       - DamageInterruptHandler.end_damage()
+    3. POST_MOVE (stack decay)
+    4. Win condition check
     ↓
 EffectProcessor.process_phase()
     ↓
@@ -226,7 +238,8 @@ ConditionEvaluator + ActionExecutor
 | `SettingFactory` | Orchestrates content generation pipeline |
 | `ItemFactory` | Creates items from templates with rarity scaling |
 | `DuelEngine` | Main API - create_duel, submit_action, cancel_duel |
-| `TurnResolver` | Orchestrates full turn with all phases |
+| `TurnResolver` | Orchestrates turn phases (resolve_pre_move, resolve_combat) |
+| `DamageInterruptHandler` | Manages PRE/POST_DAMAGE interrupt flow per recipient |
 | `EffectProcessor` | Collects and executes effects by phase |
 | `ConditionEvaluator` | Checks if effect conditions are met |
 | `ActionExecutor` | Applies actions to combat state |
@@ -279,7 +292,7 @@ python -m vaudeville_rpg
 | Branch | Status | Description |
 |--------|--------|-------------|
 | `master` | Active | Main development branch |
-| `feature/engine-logging` | Ready | Combat logging for integration testing |
+| `feature/phase-system-refactor` | Merged | State machine + combat logging + interrupts |
 | `feature/generation-pipeline` | Merged | Validation and parsing layer |
 | `feature/item-content` | Merged | LLM content generation system |
 | `feature/rating-system` | Merged | Rating system and leaderboard |
