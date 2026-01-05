@@ -4,8 +4,6 @@ This module tests the DamageInterruptHandler which processes PRE_DAMAGE/POST_DAM
 effects as interrupts that fire whenever damage is applied.
 """
 
-import pytest
-
 from vaudeville_rpg.db.models.enums import (
     ActionType,
     ConditionPhase,
@@ -23,9 +21,7 @@ from vaudeville_rpg.engine.types import CombatState, DuelContext
 class TestDamageInterruptHandler:
     """Tests for DamageInterruptHandler."""
 
-    def _create_combat_state(
-        self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None
-    ) -> CombatState:
+    def _create_combat_state(self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None) -> CombatState:
         """Create a combat state for testing."""
         return CombatState(
             player_id=player_id,
@@ -220,13 +216,120 @@ class TestDamageInterruptHandler:
         assert state1.current_hp == 0
         assert result.target_died is True
 
+    def test_pre_damage_only_triggers_for_damage_target(self):
+        """Test that PRE_DAMAGE effects only trigger for the player receiving damage.
+
+        When Player 2 (participant_id=20) damages Player 1 (participant_id=10):
+        - Player 1's PRE_DAMAGE effects should trigger (they are the target)
+        - Player 2's PRE_DAMAGE effects should NOT trigger (they are the attacker)
+        """
+        # Player 1 (target) has armor with PRE_DAMAGE reduction
+        state1 = self._create_combat_state(1, 10, hp=100, stacks={"armor": 3})
+        # Player 2 (attacker) also has armor with PRE_DAMAGE reduction
+        state2 = self._create_combat_state(2, 20, hp=100, stacks={"armor": 3})
+        context = self._create_context(state1, state2)
+
+        # Both players have armor reduction effects
+        armor_effect_p1 = EffectData(
+            id=1,
+            name="armor_reduction_p1",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": ConditionPhase.PRE_DAMAGE.value},
+            target=TargetType.SELF,
+            category=EffectCategory.WORLD_RULE,
+            action_type=ActionType.REDUCE_INCOMING_DAMAGE.value,
+            action_data={"value": 5},
+            owner_participant_id=10,  # Player 1 owns this effect
+        )
+        armor_effect_p2 = EffectData(
+            id=2,
+            name="armor_reduction_p2",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": ConditionPhase.PRE_DAMAGE.value},
+            target=TargetType.SELF,
+            category=EffectCategory.WORLD_RULE,
+            action_type=ActionType.REDUCE_INCOMING_DAMAGE.value,
+            action_data={"value": 5},
+            owner_participant_id=20,  # Player 2 owns this effect
+        )
+
+        handler = DamageInterruptHandler(
+            context=context,
+            all_effects={10: [armor_effect_p1], 20: [armor_effect_p2]},
+            all_conditions=None,
+            logger=None,
+        )
+        processor = EffectProcessor()
+        handler.set_effect_processor(processor)
+
+        # Player 2 damages Player 1 with 20 damage
+        result = handler.apply_damage(
+            target_state=state1,  # Player 1 is the target
+            damage=20,
+            effect_name="attack_from_p2",
+            source_participant_id=20,  # Player 2 is the attacker
+        )
+
+        # Only Player 1's armor should trigger (5 reduction)
+        # If Player 2's armor also triggered, reduction would be 10
+        assert result.actual_damage == 15  # 20 - 5 = 15
+        assert state1.current_hp == 85
+
+        # Verify Player 2's HP is unchanged (their armor didn't do anything)
+        assert state2.current_hp == 100
+
+    def test_attacker_armor_does_not_reduce_damage_they_deal(self):
+        """Test that when Player 2 attacks Player 1, Player 2's armor doesn't apply.
+
+        This is a regression test for the bug where attacker's PRE_DAMAGE effects
+        would incorrectly trigger when they deal damage.
+        """
+        # Player 1 (target) has NO armor
+        state1 = self._create_combat_state(1, 10, hp=100, stacks={})
+        # Player 2 (attacker) has armor with PRE_DAMAGE reduction
+        state2 = self._create_combat_state(2, 20, hp=100, stacks={"armor": 5})
+        context = self._create_context(state1, state2)
+
+        # Only Player 2 has armor reduction effect
+        armor_effect_p2 = EffectData(
+            id=1,
+            name="armor_reduction_p2",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": ConditionPhase.PRE_DAMAGE.value},
+            target=TargetType.SELF,
+            category=EffectCategory.WORLD_RULE,
+            action_type=ActionType.REDUCE_INCOMING_DAMAGE.value,
+            action_data={"value": 10},
+            owner_participant_id=20,  # Player 2 owns this effect
+        )
+
+        handler = DamageInterruptHandler(
+            context=context,
+            all_effects={10: [], 20: [armor_effect_p2]},  # Only P2 has effects
+            all_conditions=None,
+            logger=None,
+        )
+        processor = EffectProcessor()
+        handler.set_effect_processor(processor)
+
+        # Player 2 attacks Player 1 with 20 damage
+        result = handler.apply_damage(
+            target_state=state1,  # Player 1 is the target
+            damage=20,
+            effect_name="attack_from_p2",
+            source_participant_id=20,  # Player 2 is the attacker
+        )
+
+        # Player 2's armor should NOT reduce damage dealt to Player 1
+        # Full 20 damage should be applied
+        assert result.actual_damage == 20
+        assert state1.current_hp == 80  # 100 - 20
+
 
 class TestInterruptSystemLogging:
     """Tests for interrupt system logging."""
 
-    def _create_combat_state(
-        self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None
-    ) -> CombatState:
+    def _create_combat_state(self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None) -> CombatState:
         """Create a combat state for testing."""
         return CombatState(
             player_id=player_id,
@@ -289,9 +392,7 @@ class TestInterruptSystemLogging:
 class TestInterruptSystemIntegration:
     """Integration tests for the interrupt system with TurnResolver."""
 
-    def _create_combat_state(
-        self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None
-    ) -> CombatState:
+    def _create_combat_state(self, player_id: int, participant_id: int, hp: int = 100, stacks: dict | None = None) -> CombatState:
         """Create a combat state for testing."""
         return CombatState(
             player_id=player_id,

@@ -181,8 +181,9 @@ class DamageInterruptHandler:
     ) -> list[EffectResult]:
         """Process effects for an interrupt phase (PRE_DAMAGE or POST_DAMAGE).
 
-        For interrupt phases, we process effects from ALL participants that might
-        want to react to damage being dealt to the target.
+        Only effects owned by the damage target are processed. This ensures that
+        when Player A damages Player B, only Player B's PRE_DAMAGE/POST_DAMAGE
+        effects trigger (e.g., Player B's armor reduces damage to Player B).
 
         Args:
             phase: PRE_DAMAGE or POST_DAMAGE
@@ -194,15 +195,13 @@ class DamageInterruptHandler:
         if not self._effect_processor:
             return []
 
-        # Combine all effects from all participants
-        combined_effects: list["EffectData"] = []
-        for effects in self.all_effects.values():
-            combined_effects.extend(effects)
+        # Only include effects from the damage target (the player receiving damage)
+        target_effects = list(self.all_effects.get(damage_target_participant_id, []))
 
         # Process the phase
         return self._effect_processor.process_phase(
             phase=phase,
-            effects=combined_effects,
+            effects=target_effects,
             context=self.context,
             all_conditions=self.all_conditions,
             turn_number=self.context.current_turn,

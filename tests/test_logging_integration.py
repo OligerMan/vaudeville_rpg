@@ -402,12 +402,13 @@ class TestFullDuelWithLogging:
         assert rogue_t2.current_hp == 70, f"Rogue should be at 70 HP after turn 2, got {rogue_t2.current_hp}"
         assert rogue_t2.attribute_stacks.get("poison") == 1, "Rogue should have 1 poison after turn 2"
 
-        # Knight should still have armor decaying
+        # Knight's armor should NOT decay because knight never takes damage
+        # (both players skip, only rogue takes poison damage)
+        # POST_DAMAGE effects only trigger for the player receiving damage
         knight_t1 = turn_1_end.all_states[10]
         knight_t2 = turn_2_end.all_states[10]
-        assert knight_t1.attribute_stacks.get("armor") == 1, "Knight should have 1 armor after turn 1"
-        # When stacks reach 0, the attribute is removed from the dict
-        assert knight_t2.attribute_stacks.get("armor", 0) == 0, "Knight should have 0 armor after turn 2"
+        assert knight_t1.attribute_stacks.get("armor") == 2, "Knight should still have 2 armor (didn't take damage)"
+        assert knight_t2.attribute_stacks.get("armor") == 2, "Knight should still have 2 armor (didn't take damage)"
 
     def test_alphabetical_effect_ordering(self):
         """Verify effects are processed in alphabetical order."""
