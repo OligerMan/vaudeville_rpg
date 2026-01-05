@@ -18,9 +18,10 @@ def create_bot() -> Bot:
 
 def create_dispatcher() -> Dispatcher:
     """Create and configure the dispatcher with routers."""
-    from vaudeville_rpg.bot.handlers import common_router, duels_router, dungeons_router
+    from vaudeville_rpg.bot.handlers import admin_router, common_router, duels_router, dungeons_router
 
     dp = Dispatcher()
+    dp.include_router(admin_router)
     dp.include_router(common_router)
     dp.include_router(duels_router)
     dp.include_router(dungeons_router)
