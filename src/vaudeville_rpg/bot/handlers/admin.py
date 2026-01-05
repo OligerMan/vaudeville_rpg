@@ -88,9 +88,7 @@ async def cmd_generate_setting(message: Message, bot: Bot) -> None:
     # Check if LLM is configured
     settings = get_settings()
     if not settings.llm_api_key:
-        await message.answer(
-            "LLM not configured. Set LLM_API_KEY in environment to enable content generation."
-        )
+        await message.answer("LLM not configured. Set LLM_API_KEY in environment to enable content generation.")
         return
 
     # Parse description from command arguments
@@ -109,9 +107,7 @@ async def cmd_generate_setting(message: Message, bot: Bot) -> None:
 
     description = parts[1].strip()
     if len(description) < 20:
-        await message.answer(
-            "Please provide a more detailed description (at least 20 characters)."
-        )
+        await message.answer("Please provide a more detailed description (at least 20 characters).")
         return
 
     # Check if setting already exists
@@ -154,8 +150,7 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
     """Start the setting generation process."""
     # Send initial message
     status_msg = await message.answer(
-        "Generating setting... This may take a minute.\n\n"
-        "Step 1/5: Generating setting description and attributes..."
+        "Generating setting... This may take a minute.\n\nStep 1/5: Generating setting description and attributes..."
     )
 
     async with async_session_factory() as session:
@@ -174,7 +169,7 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
 
                 success_text = (
                     "<b>Setting generated successfully!</b>\n\n"
-                    f'<b>Name:</b> {result.setting.name[:80] if result.setting else "Unknown"}\n'
+                    f"<b>Name:</b> {result.setting.name[:80] if result.setting else 'Unknown'}\n"
                     f"<b>Attributes:</b> {result.attributes_created}\n"
                     f"<b>World Rules:</b> {result.world_rules_created}\n"
                     f"<b>Items:</b> {result.items_created}\n\n"
@@ -228,8 +223,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
 
     # Update message to show generation started
     await callback.message.edit_text(
-        "Generating setting... This may take a minute.\n\n"
-        "Step 1/5: Generating setting description and attributes..."
+        "Generating setting... This may take a minute.\n\nStep 1/5: Generating setting description and attributes..."
     )
 
     # Start generation
@@ -249,7 +243,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
 
                 success_text = (
                     "<b>Setting generated successfully!</b>\n\n"
-                    f'<b>Name:</b> {result.setting.name[:80] if result.setting else "Unknown"}\n'
+                    f"<b>Name:</b> {result.setting.name[:80] if result.setting else 'Unknown'}\n"
                     f"<b>Attributes:</b> {result.attributes_created}\n"
                     f"<b>World Rules:</b> {result.world_rules_created}\n"
                     f"<b>Items:</b> {result.items_created}\n\n"
