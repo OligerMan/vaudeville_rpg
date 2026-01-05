@@ -35,7 +35,12 @@ class LogEventType(str, Enum):
     # State changes
     STATE_SNAPSHOT = "state_snapshot"
 
-    # Damage application
+    # Damage interrupt system
+    DAMAGE_INTERRUPT_START = "damage_interrupt_start"
+    DAMAGE_APPLIED = "damage_applied"
+    DAMAGE_INTERRUPT_END = "damage_interrupt_end"
+
+    # Legacy (kept for backward compatibility, will be removed)
     PENDING_DAMAGE_APPLIED = "pending_damage_applied"
 
     # Win condition
@@ -242,6 +247,18 @@ class CombatLog:
 
             case LogEventType.PENDING_DAMAGE_APPLIED:
                 return f"    → Pending damage applied to P{entry.target_participant_id}: {entry.value} damage"
+
+            case LogEventType.DAMAGE_INTERRUPT_START:
+                return (
+                    f"    ⚡ Damage interrupt: {entry.value} damage to "
+                    f"P{entry.target_participant_id} from {entry.effect_name}"
+                )
+
+            case LogEventType.DAMAGE_APPLIED:
+                return f"    💥 Applied {entry.value} damage to P{entry.target_participant_id}"
+
+            case LogEventType.DAMAGE_INTERRUPT_END:
+                return f"    ⚡ Damage interrupt complete for P{entry.target_participant_id}"
 
             case LogEventType.STATE_SNAPSHOT:
                 if entry.all_states:
@@ -479,5 +496,61 @@ class CombatLogger:
                 turn_number=turn_number,
                 timestamp_order=self._next_order(),
                 winner_participant_id=winner_participant_id,
+            )
+        )
+
+    def log_damage_interrupt_start(
+        self,
+        turn_number: int,
+        target_participant_id: int,
+        base_damage: int,
+        effect_name: str,
+    ) -> None:
+        """Log the start of a damage interrupt chain."""
+        self._log.entries.append(
+            LogEntry(
+                event_type=LogEventType.DAMAGE_INTERRUPT_START,
+                turn_number=turn_number,
+                timestamp_order=self._next_order(),
+                target_participant_id=target_participant_id,
+                value=base_damage,
+                effect_name=effect_name,
+                description=f"Damage interrupt started: {base_damage} damage from {effect_name}",
+            )
+        )
+
+    def log_damage_applied(
+        self,
+        turn_number: int,
+        target_participant_id: int,
+        base_damage: int,
+        actual_damage: int,
+        reduction: int,
+    ) -> None:
+        """Log the actual damage application after reductions."""
+        self._log.entries.append(
+            LogEntry(
+                event_type=LogEventType.DAMAGE_APPLIED,
+                turn_number=turn_number,
+                timestamp_order=self._next_order(),
+                target_participant_id=target_participant_id,
+                value=actual_damage,
+                description=f"Applied {actual_damage} damage (base: {base_damage}, reduced by: {reduction})",
+            )
+        )
+
+    def log_damage_interrupt_end(
+        self,
+        turn_number: int,
+        target_participant_id: int,
+    ) -> None:
+        """Log the end of a damage interrupt chain."""
+        self._log.entries.append(
+            LogEntry(
+                event_type=LogEventType.DAMAGE_INTERRUPT_END,
+                turn_number=turn_number,
+                timestamp_order=self._next_order(),
+                target_participant_id=target_participant_id,
+                description="Damage interrupt chain completed",
             )
         )
