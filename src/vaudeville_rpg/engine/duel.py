@@ -9,12 +9,12 @@ from sqlalchemy.orm import selectinload
 
 from ..db.models.duels import Duel, DuelAction, DuelParticipant
 from ..db.models.effects import Condition, Effect
-from ..db.models.enums import ConditionType, DuelActionType, DuelStatus, EffectCategory, ItemSlot
+from ..db.models.enums import ConditionType, DuelActionType, DuelStatus, EffectCategory, ItemSlot, TurnPhase
 from ..db.models.items import Item
 from ..db.models.players import Player, PlayerCombatState
 from ..utils.rating import RatingChange, calculate_rating_change
 from .effects import EffectData
-from .turn import ItemData, ParticipantAction, TurnResolver
+from .turn import ItemData, ParticipantAction, PreMoveResult, TurnResolver
 from .types import CombatState, DuelContext, TurnResult
 
 if TYPE_CHECKING:
@@ -29,8 +29,10 @@ class DuelResult:
     message: str
     duel_id: int | None = None
     turn_result: TurnResult | None = None
+    pre_move_result: PreMoveResult | None = None
     rating_change: RatingChange | None = None
     combat_log: "CombatLog | None" = None
+    current_phase: TurnPhase | None = None
 
 
 class DuelEngine:
@@ -134,6 +136,11 @@ class DuelEngine:
     ) -> DuelResult:
         """Submit an action for a player in the current turn.
 
+        The state machine flow is:
+        1. If phase is NOT_STARTED, PRE_MOVE runs automatically first
+        2. Action is recorded, player marked as ready
+        3. If both players ready, combat phase runs
+
         Args:
             duel_id: ID of the duel
             player_id: ID of the player submitting
@@ -163,6 +170,29 @@ class DuelEngine:
         if participant.is_ready:
             return DuelResult(success=False, message="Already submitted action this turn")
 
+        # If turn hasn't started yet, run PRE_MOVE phase first
+        pre_move_result = None
+        if duel.current_phase == TurnPhase.NOT_STARTED:
+            pre_move_result = await self._run_pre_move(duel)
+            duel.current_phase = TurnPhase.PRE_MOVE_COMPLETE
+
+            # If PRE_MOVE ended the duel (e.g., poison killed someone)
+            if pre_move_result.is_duel_over:
+                duel.status = DuelStatus.COMPLETED
+                duel.winner_participant_id = pre_move_result.winner_participant_id
+                rating_change = await self._update_ratings(duel, pre_move_result.winner_participant_id)
+                await self.session.commit()
+                combat_log = self.logger.get_log() if self.logger else None
+                return DuelResult(
+                    success=True,
+                    message="Duel ended during PRE_MOVE phase",
+                    duel_id=duel_id,
+                    pre_move_result=pre_move_result,
+                    rating_change=rating_change,
+                    combat_log=combat_log,
+                    current_phase=duel.current_phase,
+                )
+
         # Create action record
         action = DuelAction(
             duel_id=duel_id,
@@ -185,10 +215,13 @@ class DuelEngine:
                 success=True,
                 message="Action submitted, waiting for opponent",
                 duel_id=duel_id,
+                pre_move_result=pre_move_result,
+                current_phase=duel.current_phase,
             )
 
-        # Both ready - resolve the turn
-        turn_result = await self._resolve_turn(duel)
+        # Both ready - resolve the combat phase
+        turn_result = await self._resolve_combat(duel, pre_move_result)
+        duel.current_phase = TurnPhase.COMBAT_COMPLETE
 
         # Update duel state based on result
         rating_change = None
@@ -201,6 +234,7 @@ class DuelEngine:
         else:
             # Advance to next turn
             duel.current_turn += 1
+            duel.current_phase = TurnPhase.NOT_STARTED
             for p in duel.participants:
                 p.is_ready = False
 
@@ -214,8 +248,10 @@ class DuelEngine:
             message="Turn resolved",
             duel_id=duel_id,
             turn_result=turn_result,
+            pre_move_result=pre_move_result,
             rating_change=rating_change,
             combat_log=combat_log,
+            current_phase=duel.current_phase,
         )
 
     async def cancel_duel(self, duel_id: int) -> DuelResult:
@@ -258,6 +294,7 @@ class DuelEngine:
             "duel_id": duel.id,
             "status": duel.status.value,
             "current_turn": duel.current_turn,
+            "current_phase": duel.current_phase.value,
             "participants": [
                 {
                     "participant_id": p.id,
@@ -276,6 +313,67 @@ class DuelEngine:
             ],
             "winner_participant_id": duel.winner_participant_id,
         }
+
+    async def get_turn_state(self, duel_id: int) -> DuelResult:
+        """Get the current turn state, triggering PRE_MOVE if needed.
+
+        This method is used by players to poll the turn state. If the turn
+        hasn't started yet (phase is NOT_STARTED), it will automatically
+        run the PRE_MOVE phase so players can see effects like poison damage
+        before choosing their actions.
+
+        Args:
+            duel_id: ID of the duel
+
+        Returns:
+            DuelResult with current phase and PRE_MOVE results if applicable
+        """
+        duel = await self._load_duel(duel_id)
+        if duel is None:
+            return DuelResult(success=False, message="Duel not found")
+
+        if duel.status != DuelStatus.IN_PROGRESS:
+            return DuelResult(
+                success=True,
+                message=f"Duel is {duel.status.value}",
+                duel_id=duel_id,
+                current_phase=duel.current_phase,
+            )
+
+        # If turn hasn't started, run PRE_MOVE phase
+        pre_move_result = None
+        if duel.current_phase == TurnPhase.NOT_STARTED:
+            pre_move_result = await self._run_pre_move(duel)
+            duel.current_phase = TurnPhase.PRE_MOVE_COMPLETE
+
+            # If PRE_MOVE ended the duel (e.g., poison killed someone)
+            if pre_move_result.is_duel_over:
+                duel.status = DuelStatus.COMPLETED
+                duel.winner_participant_id = pre_move_result.winner_participant_id
+                rating_change = await self._update_ratings(duel, pre_move_result.winner_participant_id)
+                await self.session.commit()
+                combat_log = self.logger.get_log() if self.logger else None
+                return DuelResult(
+                    success=True,
+                    message="Duel ended during PRE_MOVE phase",
+                    duel_id=duel_id,
+                    pre_move_result=pre_move_result,
+                    rating_change=rating_change,
+                    combat_log=combat_log,
+                    current_phase=duel.current_phase,
+                )
+
+            await self.session.commit()
+
+        combat_log = self.logger.get_log() if self.logger else None
+        return DuelResult(
+            success=True,
+            message="Turn state retrieved",
+            duel_id=duel_id,
+            pre_move_result=pre_move_result,
+            combat_log=combat_log,
+            current_phase=duel.current_phase,
+        )
 
     async def _load_duel(self, duel_id: int) -> Duel | None:
         """Load a duel with its participants."""
@@ -296,6 +394,131 @@ class DuelEngine:
         result = await self.session.execute(stmt)
         states = result.scalars().all()
         return {s.player_id: s for s in states}
+
+    async def _build_context(self, duel: Duel) -> tuple[DuelContext, dict[int, PlayerCombatState]]:
+        """Build the DuelContext and load combat states.
+
+        Returns:
+            Tuple of (DuelContext, db_combat_states dict)
+        """
+        combat_states = await self._load_combat_states(duel.id)
+
+        context = DuelContext(
+            duel_id=duel.id,
+            setting_id=duel.setting_id,
+            current_turn=duel.current_turn,
+            states={},
+        )
+
+        # Convert DB combat states to engine CombatState
+        players = await self._load_players([p.player_id for p in duel.participants])
+        for participant in duel.participants:
+            player = players.get(participant.player_id)
+            db_state = combat_states.get(participant.player_id)
+            if player and db_state:
+                context.states[participant.id] = CombatState(
+                    player_id=participant.player_id,
+                    participant_id=participant.id,
+                    current_hp=db_state.current_hp,
+                    max_hp=player.max_hp,
+                    current_special_points=db_state.current_special_points,
+                    max_special_points=player.max_special_points,
+                    attribute_stacks=dict(db_state.attribute_stacks),
+                )
+
+        return context, combat_states
+
+    async def _persist_combat_states(
+        self,
+        context: DuelContext,
+        duel: Duel,
+        db_combat_states: dict[int, PlayerCombatState],
+    ) -> None:
+        """Persist updated combat states back to DB."""
+        for participant_id, state in context.states.items():
+            for participant in duel.participants:
+                if participant.id == participant_id:
+                    db_state = db_combat_states.get(participant.player_id)
+                    if db_state:
+                        db_state.current_hp = state.current_hp
+                        db_state.current_special_points = state.current_special_points
+                        db_state.attribute_stacks = state.attribute_stacks
+
+    async def _run_pre_move(self, duel: Duel) -> PreMoveResult:
+        """Run the PRE_MOVE phase of a turn.
+
+        This processes effects like poison damage and buffs before players
+        choose their actions for the turn.
+
+        Args:
+            duel: The duel to process
+
+        Returns:
+            PreMoveResult with effects applied and state for combat phase
+        """
+        context, db_combat_states = await self._build_context(duel)
+        world_rules = await self._load_world_rules(duel.setting_id)
+        all_conditions = await self._load_all_conditions()
+
+        # Run PRE_MOVE phase
+        result = self.turn_resolver.resolve_pre_move(
+            context,
+            world_rules,
+            all_conditions,
+        )
+
+        # Persist updated combat states
+        await self._persist_combat_states(context, duel, db_combat_states)
+
+        return result
+
+    async def _resolve_combat(
+        self,
+        duel: Duel,
+        pre_move_result: PreMoveResult | None = None,
+    ) -> TurnResult:
+        """Resolve the combat phase of a turn.
+
+        This processes PRE_ATTACK through POST_MOVE phases after both
+        players have submitted their actions.
+
+        Args:
+            duel: The duel to process
+            pre_move_result: Result from _run_pre_move if already executed
+
+        Returns:
+            TurnResult with effects applied and winner if any
+        """
+        context, db_combat_states = await self._build_context(duel)
+        actions = await self._load_turn_actions(duel.id, duel.current_turn)
+        world_rules = await self._load_world_rules(duel.setting_id)
+        participant_items = await self._load_participant_items(duel.participants)
+        all_conditions = await self._load_all_conditions()
+
+        # Convert actions
+        participant_actions = [
+            ParticipantAction(
+                participant_id=a.participant_id,
+                action_type=a.action_type,
+                item_id=a.item_id,
+            )
+            for a in actions
+        ]
+
+        # Run combat phase
+        result = self.turn_resolver.resolve_combat(
+            context,
+            participant_actions,
+            world_rules,
+            participant_items,
+            all_conditions,
+            pre_move_result,
+        )
+
+        # Persist updated combat states
+        await self._persist_combat_states(context, duel, db_combat_states)
+
+        return result
 
     async def _resolve_turn(self, duel: Duel) -> TurnResult:
         """Resolve the current turn."""

@@ -6,7 +6,7 @@ from .duel import DuelEngine, DuelResult
 from .effects import EffectProcessor
 from .interrupts import DamageInterruptHandler, DamageResult
 from .logging import CombatLog, CombatLogger, LogEntry, LogEventType, StateSnapshot
-from .turn import PreMoveResult, TurnResolver
+from .turn import ParticipantAction, PreMoveResult, TurnResolver
 
 __all__ = [
     "ConditionEvaluator",
@@ -15,6 +15,7 @@ __all__ = [
     "DamageInterruptHandler",
     "DamageResult",
     "TurnResolver",
+    "ParticipantAction",
     "PreMoveResult",
     "DuelEngine",
     "DuelResult",
