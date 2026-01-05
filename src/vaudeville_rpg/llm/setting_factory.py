@@ -419,6 +419,25 @@ class SettingFactory:
                     if parse_result.success:
                         items_created += 1
 
+            # Create default "Fist" item for new players
+            fist_result = await self.item_parser.parse_item(
+                setting_id=setting_id,
+                name="Fist",
+                description="Your bare fists. Not very effective, but always available.",
+                slot="attack",
+                rarity=1,
+                actions=[
+                    {
+                        "action_type": "damage",
+                        "target": "enemy",
+                        "value": 8,
+                        "attribute": None,
+                    }
+                ],
+            )
+            if fist_result.success:
+                items_created += 1
+
             step.success = True
             step.message = f"Created {items_created} items"
             step.data = items_created
