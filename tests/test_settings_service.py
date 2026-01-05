@@ -2,22 +2,12 @@
 
 import pytest
 
-from vaudeville_rpg.db.models.duels import Duel
-from vaudeville_rpg.db.models.dungeons import Dungeon, DungeonEnemy
-from vaudeville_rpg.db.models.effects import Action, Condition, Effect
 from vaudeville_rpg.db.models.enums import (
-    ActionType,
-    ConditionType,
-    DuelStatus,
-    DungeonDifficulty,
-    DungeonStatus,
-    EffectCategory,
     ItemSlot,
 )
 from vaudeville_rpg.db.models.items import Item
 from vaudeville_rpg.db.models.players import Player
-from vaudeville_rpg.db.models.settings import AttributeDefinition, Setting
-from vaudeville_rpg.services.settings import SettingsService
+from vaudeville_rpg.db.models.settings import Setting
 
 
 class TestSettingsService:
