@@ -98,9 +98,7 @@ class TurnResolver:
         # Collect world rule effects for each participant (no item effects yet)
         all_effects: dict[int, list[EffectData]] = {}
         for participant_id in context.states:
-            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(
-                participant_id, world_rules, []
-            )
+            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(participant_id, world_rules, [])
 
         # Create the damage interrupt handler
         interrupt_handler = DamageInterruptHandler(
@@ -114,9 +112,7 @@ class TurnResolver:
 
         try:
             # Process PRE_MOVE phase
-            self._process_phase_for_all(
-                ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result
-            )
+            self._process_phase_for_all(ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result)
 
             # Check for deaths after PRE_MOVE
             winner = self._check_winner(context)
@@ -182,9 +178,7 @@ class TurnResolver:
                 action_map.get(participant_id),
                 participant_items.get(participant_id, {}),
             )
-            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(
-                participant_id, world_rules, item_effects
-            )
+            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(participant_id, world_rules, item_effects)
 
         # Create the damage interrupt handler
         interrupt_handler = DamageInterruptHandler(
@@ -198,12 +192,8 @@ class TurnResolver:
 
         try:
             # Phase 2: Action resolution (PRE_ATTACK → attacks → POST_ATTACK)
-            self._process_phase_for_all(
-                ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result
-            )
-            self._process_phase_for_all(
-                ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result
-            )
+            self._process_phase_for_all(ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result)
+            self._process_phase_for_all(ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result)
 
             # Check for deaths after attacks
             winner = self._check_winner(context)
@@ -216,9 +206,7 @@ class TurnResolver:
                 return result
 
             # Phase 3: POST_MOVE
-            self._process_phase_for_all(
-                ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result
-            )
+            self._process_phase_for_all(ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result)
 
             # Reset turn modifiers
             for state in context.states.values():
@@ -289,9 +277,7 @@ class TurnResolver:
                 action_map.get(participant_id),
                 participant_items.get(participant_id, {}),
             )
-            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(
-                participant_id, world_rules, item_effects
-            )
+            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(participant_id, world_rules, item_effects)
 
         # Create the damage interrupt handler for this turn
         # This handler will process PRE_DAMAGE/POST_DAMAGE effects whenever damage occurs

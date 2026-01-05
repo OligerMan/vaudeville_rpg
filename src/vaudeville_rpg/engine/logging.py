@@ -249,10 +249,7 @@ class CombatLog:
                 return f"    → Pending damage applied to P{entry.target_participant_id}: {entry.value} damage"
 
             case LogEventType.DAMAGE_INTERRUPT_START:
-                return (
-                    f"    ⚡ Damage interrupt: {entry.value} damage to "
-                    f"P{entry.target_participant_id} from {entry.effect_name}"
-                )
+                return f"    ⚡ Damage interrupt: {entry.value} damage to P{entry.target_participant_id} from {entry.effect_name}"
 
             case LogEventType.DAMAGE_APPLIED:
                 return f"    💥 Applied {entry.value} damage to P{entry.target_participant_id}"
