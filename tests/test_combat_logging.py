@@ -525,7 +525,11 @@ class TestTurnResolverWithLogging:
         assert len(turn_ends) == 1
 
     def test_phases_logged(self):
-        """Test that all phases are logged."""
+        """Test that all sequential phases are logged.
+
+        Note: PRE_DAMAGE and POST_DAMAGE are now interrupt phases that only fire
+        when damage is being applied, not sequential phases.
+        """
         actions = [
             ParticipantAction(participant_id=10, action_type=DuelActionType.SKIP),
             ParticipantAction(participant_id=20, action_type=DuelActionType.SKIP),
@@ -542,9 +546,10 @@ class TestTurnResolverWithLogging:
         phase_starts = log.get_entries_by_type(LogEventType.PHASE_START)
         phase_ends = log.get_entries_by_type(LogEventType.PHASE_END)
 
-        # Should have PRE_MOVE, PRE_ATTACK, POST_ATTACK, PRE_DAMAGE, POST_DAMAGE, POST_MOVE
-        assert len(phase_starts) == 6
-        assert len(phase_ends) == 6
+        # Should have PRE_MOVE, PRE_ATTACK, POST_ATTACK, POST_MOVE
+        # (PRE_DAMAGE and POST_DAMAGE are now interrupt phases, not sequential)
+        assert len(phase_starts) == 4
+        assert len(phase_ends) == 4
 
     def test_effect_evaluation_logged(self):
         """Test that effect evaluations are logged."""

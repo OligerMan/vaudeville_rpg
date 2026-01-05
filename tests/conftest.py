@@ -374,7 +374,7 @@ async def _create_defense_item(db_session: AsyncSession, setting: Setting, suffi
     condition = Condition(
         name=f"shield_condition_{suffix}",
         condition_type=ConditionType.PHASE,
-        condition_data={"phase": ConditionPhase.PRE_DAMAGE.value},
+        condition_data={"phase": ConditionPhase.PRE_ATTACK.value},
     )
     db_session.add(condition)
     await db_session.flush()

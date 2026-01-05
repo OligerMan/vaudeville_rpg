@@ -240,12 +240,12 @@ class TestFullDuelWithLogging:
         turn_1_phases = [e for e in phase_starts if e.turn_number == 1]
         phase_order = [e.phase for e in turn_1_phases]
 
+        # Note: PRE_DAMAGE and POST_DAMAGE are now interrupt phases, not sequential
+        # They fire within damage events, not as separate phases
         expected_order = [
             ConditionPhase.PRE_MOVE,
             ConditionPhase.PRE_ATTACK,
             ConditionPhase.POST_ATTACK,
-            ConditionPhase.PRE_DAMAGE,
-            ConditionPhase.POST_DAMAGE,
             ConditionPhase.POST_MOVE,
         ]
 
