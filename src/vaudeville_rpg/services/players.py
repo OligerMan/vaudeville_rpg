@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..db.models.items import Item
 from ..db.models.players import Player
 from ..db.models.settings import Setting
 
@@ -43,7 +44,15 @@ class PlayerService:
                 player.display_name = display_name
             return player
 
-        # Create new player with default stats
+        # Find the default Fist item for this setting
+        fist_stmt = select(Item).where(
+            Item.setting_id == setting_id,
+            Item.name == "Fist",
+        )
+        fist_result = await self.session.execute(fist_stmt)
+        fist_item = fist_result.scalar_one_or_none()
+
+        # Create new player with default stats and Fist equipped
         player = Player(
             telegram_user_id=telegram_user_id,
             setting_id=setting_id,
@@ -51,6 +60,7 @@ class PlayerService:
             max_hp=100,
             max_special_points=50,
             rating=1000,
+            attack_item_id=fist_item.id if fist_item else None,
         )
         self.session.add(player)
         await self.session.flush()
