@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None  # For local inference (vLLM, etc.)
     llm_model: str = "claude-sonnet-4-20250514"  # Default model
 
+    # Admin Configuration
+    admin_user_ids: str | None = None  # Comma-separated list of Telegram user IDs
+
+    def get_admin_user_ids(self) -> list[int]:
+        """Parse admin user IDs from comma-separated string."""
+        if not self.admin_user_ids:
+            return []
+        return [int(uid.strip()) for uid in self.admin_user_ids.split(",") if uid.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:
