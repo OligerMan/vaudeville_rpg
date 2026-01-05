@@ -1,13 +1,28 @@
 """Action executor - applies actions to combat state."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from ..db.models.enums import ActionType
 from .types import ActionContext, EffectResult
 
+if TYPE_CHECKING:
+    from .interrupts import DamageInterruptHandler
+
 
 class ActionExecutor:
     """Executes actions and modifies combat state."""
+
+    def __init__(self, interrupt_handler: "DamageInterruptHandler | None" = None) -> None:
+        """Initialize the action executor.
+
+        Args:
+            interrupt_handler: Optional handler for damage interrupt processing.
+                If provided, damage/attack actions will go through PRE/POST_DAMAGE
+                interrupt phases.
+        """
+        self.interrupt_handler = interrupt_handler
 
     def execute(
         self,
@@ -61,9 +76,25 @@ class ActionExecutor:
         context: ActionContext,
         effect_name: str,
     ) -> EffectResult:
-        """Apply direct damage (bypasses crit/miss)."""
+        """Apply direct damage (bypasses crit/miss).
+
+        If an interrupt handler is set, damage goes through PRE/POST_DAMAGE phases.
+        """
         value = action_data.get("value", 0)
-        actual = context.target_state.apply_damage(value)
+
+        if self.interrupt_handler:
+            # Route through interrupt system
+            result = self.interrupt_handler.apply_damage(
+                target_state=context.target_state,
+                damage=value,
+                effect_name=effect_name,
+                source_participant_id=context.source_participant_id,
+            )
+            actual = result.actual_damage
+        else:
+            # Direct damage (no interrupt processing)
+            actual = context.target_state.apply_damage(value)
+
         return EffectResult(
             effect_name=effect_name,
             target_participant_id=context.target_state.participant_id,
@@ -84,10 +115,25 @@ class ActionExecutor:
         - Crit chance calculation
         - Miss chance calculation
         - Bonus damage from buffs
+
+        If an interrupt handler is set, damage goes through PRE/POST_DAMAGE phases.
         """
         value = action_data.get("value", 0)
         # TODO: Add crit/miss mechanics later
-        actual = context.target_state.apply_damage(value)
+
+        if self.interrupt_handler:
+            # Route through interrupt system
+            result = self.interrupt_handler.apply_damage(
+                target_state=context.target_state,
+                damage=value,
+                effect_name=effect_name,
+                source_participant_id=context.source_participant_id,
+            )
+            actual = result.actual_damage
+        else:
+            # Direct damage (no interrupt processing)
+            actual = context.target_state.apply_damage(value)
+
         return EffectResult(
             effect_name=effect_name,
             target_participant_id=context.target_state.participant_id,
