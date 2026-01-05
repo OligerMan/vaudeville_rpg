@@ -16,7 +16,10 @@
       "Bash(.venv/Scripts/python -m pytest tests/test_integration_duels.py -v --tb=short)",
       "Bash(.venv/Scripts/python -m pytest tests/test_integration_duels.py::TestDuelEngine::test_submit_action_and_resolve_turn -v --tb=long)",
       "Bash(.venv/Scripts/python -m pytest tests/ -q)",
-      "Bash(.venv/Scripts/python -m pytest tests/test_combat_logging.py -v --tb=short)"
+      "Bash(.venv/Scripts/python -m pytest tests/test_combat_logging.py -v --tb=short)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_logging_integration.py -v --tb=short)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(git restore:*)"
     ]
   },
   "hooks": {
