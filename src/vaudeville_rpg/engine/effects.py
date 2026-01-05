@@ -48,11 +48,12 @@ class EffectProcessor:
         self.condition_evaluator = ConditionEvaluator()
         self.action_executor = ActionExecutor(interrupt_handler=interrupt_handler)
 
-    def set_interrupt_handler(self, handler: "DamageInterruptHandler") -> None:
+    def set_interrupt_handler(self, handler: "DamageInterruptHandler | None") -> None:
         """Set or update the interrupt handler.
 
         This is useful when the handler needs to be set after creation
         due to circular references (handler needs processor, processor needs handler).
+        Can also be used to clear the handler by passing None.
         """
         self.interrupt_handler = handler
         self.action_executor.interrupt_handler = handler

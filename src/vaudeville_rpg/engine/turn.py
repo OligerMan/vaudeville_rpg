@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..db.models.enums import ConditionPhase, ConditionType, DuelActionType, ItemSlot
 from .effects import EffectData, EffectProcessor
+from .interrupts import DamageInterruptHandler
 from .types import DuelContext, TurnResult
 
 if TYPE_CHECKING:
@@ -46,13 +47,16 @@ class TurnResolver:
     ) -> TurnResult:
         """Resolve a complete turn.
 
-        Turn flow per WIKI.md:
-        1. PRE_MOVE effects trigger
-        2. Both actions revealed and applied simultaneously
-           - PRE_ATTACK → ATTACK → POST_ATTACK effects
-           - PRE_DAMAGE → DAMAGE → POST_DAMAGE effects
-        3. POST_MOVE effects trigger
-        4. Check win condition
+        Turn flow:
+        1. PRE_MOVE effects trigger (poison tick, buffs)
+        2. PRE_ATTACK effects trigger (if attack/defense items used)
+        3. Attacks and effects resolve (damage goes through interrupt system)
+        4. POST_ATTACK effects trigger
+        5. POST_MOVE effects trigger (stack decay)
+        6. Check win condition
+
+        PRE_DAMAGE and POST_DAMAGE are NOT sequential phases - they are interrupts
+        that trigger automatically whenever any damage is applied via ActionExecutor.
 
         Args:
             context: Duel context with combat states
@@ -81,109 +85,75 @@ class TurnResolver:
                 action_map.get(participant_id),
                 participant_items.get(participant_id, {}),
             )
-            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(participant_id, world_rules, item_effects)
+            all_effects[participant_id] = self.effect_processor.collect_effects_for_participant(
+                participant_id, world_rules, item_effects
+            )
 
-        # Phase 1: PRE_MOVE
-        self._process_phase_for_all(ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result)
+        # Create the damage interrupt handler for this turn
+        # This handler will process PRE_DAMAGE/POST_DAMAGE effects whenever damage occurs
+        interrupt_handler = DamageInterruptHandler(
+            context=context,
+            all_effects=all_effects,
+            all_conditions=all_conditions,
+            logger=self.logger,
+        )
+        # Set up the circular reference: handler needs processor, processor needs handler
+        interrupt_handler.set_effect_processor(self.effect_processor)
+        self.effect_processor.set_interrupt_handler(interrupt_handler)
 
-        # Check for deaths after PRE_MOVE (e.g., poison)
-        winner = self._check_winner(context)
-        if winner is not None:
-            result.winner_participant_id = winner
-            result.is_duel_over = True
+        try:
+            # Phase 1: PRE_MOVE
+            self._process_phase_for_all(ConditionPhase.PRE_MOVE, all_effects, context, all_conditions, result)
+
+            # Check for deaths after PRE_MOVE (e.g., poison triggers damage interrupt)
+            winner = self._check_winner(context)
+            if winner is not None:
+                result.winner_participant_id = winner
+                result.is_duel_over = True
+                if self.logger:
+                    self.logger.log_winner(context.current_turn, winner)
+                    self.logger.log_turn_end(context.current_turn, context.states)
+                return result
+
+            # Phase 2: Action resolution (PRE_ATTACK → attacks → POST_ATTACK)
+            # Note: Attack effects trigger damage which goes through the interrupt system
+            self._process_phase_for_all(ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result)
+            self._process_phase_for_all(ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result)
+
+            # Check for deaths after attacks
+            winner = self._check_winner(context)
+            if winner is not None:
+                result.winner_participant_id = winner
+                result.is_duel_over = True
+                if self.logger:
+                    self.logger.log_winner(context.current_turn, winner)
+                    self.logger.log_turn_end(context.current_turn, context.states)
+                return result
+
+            # Phase 3: POST_MOVE
+            self._process_phase_for_all(ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result)
+
+            # Reset turn modifiers
+            for state in context.states.values():
+                state.reset_turn_modifiers()
+
+            # Final death check
+            winner = self._check_winner(context)
+            if winner is not None:
+                result.winner_participant_id = winner
+                result.is_duel_over = True
+                if self.logger:
+                    self.logger.log_winner(context.current_turn, winner)
+
+            # Log turn end
             if self.logger:
-                self.logger.log_winner(context.current_turn, winner)
                 self.logger.log_turn_end(context.current_turn, context.states)
+
             return result
 
-        # Phase 2: Action resolution (PRE_ATTACK → ATTACK → POST_ATTACK)
-        # Note: Attack effects are already included in all_effects via _get_active_item_effects
-        # They will be processed in PRE_ATTACK phase based on their condition
-        self._process_phase_for_all(ConditionPhase.PRE_ATTACK, all_effects, context, all_conditions, result)
-        self._process_phase_for_all(ConditionPhase.POST_ATTACK, all_effects, context, all_conditions, result)
-
-        # Phase 3: Damage resolution (PRE_DAMAGE → apply → POST_DAMAGE)
-        self._process_phase_for_all(ConditionPhase.PRE_DAMAGE, all_effects, context, all_conditions, result)
-
-        # Apply any pending damage
-        for state in context.states.values():
-            if state.pending_damage > 0:
-                # Capture state before
-                state_before_hp = state.current_hp
-                state_before_pending = state.pending_damage
-                state_before_reduction = state.incoming_damage_reduction
-                state_before_stacks = dict(state.attribute_stacks)
-
-                actual = state.apply_damage(state.pending_damage)
-                if actual > 0:
-                    from .types import EffectResult
-
-                    result.add_effect(
-                        EffectResult(
-                            effect_name="pending_damage",
-                            target_participant_id=state.participant_id,
-                            action_type="damage",
-                            value=actual,
-                            description=f"Took {actual} damage",
-                        )
-                    )
-
-                    # Log pending damage application
-                    if self.logger:
-                        from .types import CombatState
-
-                        # Create a temporary state object for the before snapshot
-                        before_state = CombatState(
-                            player_id=0,  # Not needed for snapshot
-                            participant_id=state.participant_id,
-                            current_hp=state_before_hp,
-                            max_hp=state.max_hp,
-                            current_special_points=state.current_special_points,
-                            max_special_points=state.max_special_points,
-                            attribute_stacks=state_before_stacks,
-                            incoming_damage_reduction=state_before_reduction,
-                            pending_damage=state_before_pending,
-                        )
-                        self.logger.log_pending_damage_applied(
-                            turn_number=context.current_turn,
-                            target_participant_id=state.participant_id,
-                            value=actual,
-                            state_before=before_state,
-                            state_after=state,
-                        )
-
-        self._process_phase_for_all(ConditionPhase.POST_DAMAGE, all_effects, context, all_conditions, result)
-
-        # Check for deaths after damage
-        winner = self._check_winner(context)
-        if winner is not None:
-            result.winner_participant_id = winner
-            result.is_duel_over = True
-            if self.logger:
-                self.logger.log_winner(context.current_turn, winner)
-                self.logger.log_turn_end(context.current_turn, context.states)
-            return result
-
-        # Phase 4: POST_MOVE
-        self._process_phase_for_all(ConditionPhase.POST_MOVE, all_effects, context, all_conditions, result)
-
-        # Reset turn modifiers
-        for state in context.states.values():
-            state.reset_turn_modifiers()
-
-        # Final death check
-        winner = self._check_winner(context)
-        if winner is not None:
-            result.winner_participant_id = winner
-            result.is_duel_over = True
-            if self.logger:
-                self.logger.log_winner(context.current_turn, winner)
-
-        # Log turn end
-        if self.logger:
-            self.logger.log_turn_end(context.current_turn, context.states)
-
-        return result
+        finally:
+            # Clean up: remove the interrupt handler to avoid keeping references
+            self.effect_processor.set_interrupt_handler(None)
 
     def _process_phase_for_all(
         self,
