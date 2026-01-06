@@ -8,11 +8,14 @@ from sqlalchemy import func, select
 from ...db.engine import async_session_factory
 from ...db.models.players import Player
 from ...services.players import PlayerService
+from ..utils import log_command, safe_handler, validate_message_user
 
 router = Router(name="common")
 
 
 @router.message(Command("start"))
+@safe_handler
+@log_command("/start")
 async def cmd_start(message: Message) -> None:
     """Handle /start command."""
     await message.answer(
@@ -23,6 +26,8 @@ async def cmd_start(message: Message) -> None:
 
 
 @router.message(Command("help"))
+@safe_handler
+@log_command("/help")
 async def cmd_help(message: Message) -> None:
     """Handle /help command."""
     await message.answer(
@@ -37,9 +42,12 @@ async def cmd_help(message: Message) -> None:
 
 
 @router.message(Command("profile"))
+@safe_handler
+@log_command("/profile")
 async def cmd_profile(message: Message) -> None:
     """Handle /profile command - show player stats."""
-    if not message.from_user:
+    if not validate_message_user(message):
+        await message.answer("Could not identify user. Please try again.")
         return
 
     async with async_session_factory() as session:
@@ -83,6 +91,8 @@ async def cmd_profile(message: Message) -> None:
 
 
 @router.message(Command("leaderboard"))
+@safe_handler
+@log_command("/leaderboard")
 async def cmd_leaderboard(message: Message) -> None:
     """Handle /leaderboard command - show top players."""
     async with async_session_factory() as session:

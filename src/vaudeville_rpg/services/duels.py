@@ -1,5 +1,7 @@
 """Duel service - handles duel operations for bot handlers."""
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -8,6 +10,9 @@ from ..db.models.duels import Duel, DuelParticipant
 from ..db.models.enums import DuelActionType, DuelStatus
 from ..db.models.players import Player
 from ..engine.duel import DuelEngine, DuelResult
+
+# Duel timeout: duels inactive for more than 24 hours are auto-cancelled
+DUEL_TIMEOUT_HOURS = 24
 
 
 class DuelService:
@@ -128,17 +133,31 @@ class DuelService:
         return await self.engine.get_duel_state(duel_id)
 
     async def get_pending_duel(self, duel_id: int) -> Duel | None:
-        """Get a pending duel by ID."""
+        """Get a pending duel by ID.
+
+        Automatically cancels challenges that have timed out (inactive for 24+ hours).
+        """
         stmt = (
             select(Duel)
             .where(Duel.id == duel_id, Duel.status == DuelStatus.PENDING)
             .options(selectinload(Duel.participants).selectinload(DuelParticipant.player))
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        duel = result.scalar_one_or_none()
+
+        if duel and self._is_duel_timed_out(duel):
+            # Auto-cancel timed out challenge
+            duel.status = DuelStatus.CANCELLED
+            await self.session.flush()
+            return None
+
+        return duel
 
     async def get_active_duel(self, duel_id: int) -> Duel | None:
-        """Get an active (in-progress) duel by ID."""
+        """Get an active (in-progress) duel by ID.
+
+        Automatically cancels duels that have timed out (inactive for 24+ hours).
+        """
         stmt = (
             select(Duel)
             .where(Duel.id == duel_id, Duel.status == DuelStatus.IN_PROGRESS)
@@ -148,7 +167,29 @@ class DuelService:
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        duel = result.scalar_one_or_none()
+
+        if duel and self._is_duel_timed_out(duel):
+            # Auto-cancel timed out duel
+            duel.status = DuelStatus.CANCELLED
+            await self.session.flush()
+            return None
+
+        return duel
+
+    def _is_duel_timed_out(self, duel: Duel) -> bool:
+        """Check if a duel has exceeded the timeout period."""
+        if duel.updated_at is None:
+            return False
+
+        now = datetime.now(timezone.utc)
+        # Handle both timezone-aware and naive datetimes
+        updated_at = duel.updated_at
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+
+        timeout = timedelta(hours=DUEL_TIMEOUT_HOURS)
+        return now - updated_at > timeout
 
     async def _get_duel_with_participants(self, duel_id: int) -> Duel | None:
         """Get duel with participants loaded."""

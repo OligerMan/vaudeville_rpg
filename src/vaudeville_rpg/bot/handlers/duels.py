@@ -8,6 +8,13 @@ from ...db.engine import async_session_factory
 from ...db.models.enums import DuelActionType
 from ...services.duels import DuelService
 from ...services.players import PlayerService
+from ..utils import (
+    log_callback,
+    log_command,
+    safe_handler,
+    validate_callback_message,
+    validate_reply_message,
+)
 
 router = Router(name="duels")
 
@@ -103,9 +110,11 @@ def format_turn_result(turn_result) -> str:
 
 
 @router.message(Command("challenge"))
+@safe_handler
+@log_command("/challenge")
 async def cmd_challenge(message: Message) -> None:
     """Handle /challenge command - initiate a duel."""
-    if not message.reply_to_message:
+    if not validate_reply_message(message):
         await message.answer("Reply to a user's message with /challenge to challenge them to a duel!")
         return
 
@@ -121,7 +130,7 @@ async def cmd_challenge(message: Message) -> None:
         return
 
     if challenged.is_bot:
-        await message.answer("You can't challenge a bot!")
+        await message.answer("You can't challenge a bot! Use /dungeon for PvE.")
         return
 
     async with async_session_factory() as session:
@@ -165,9 +174,12 @@ async def cmd_challenge(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith(ACCEPT_DUEL))
+@safe_handler
+@log_callback("accept_duel")
 async def callback_accept_duel(callback: CallbackQuery) -> None:
     """Handle accept duel button."""
-    if not callback.data or not callback.from_user:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     duel_id = int(callback.data.replace(ACCEPT_DUEL, ""))
@@ -218,9 +230,12 @@ async def callback_accept_duel(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DECLINE_DUEL))
+@safe_handler
+@log_callback("decline_duel")
 async def callback_decline_duel(callback: CallbackQuery) -> None:
     """Handle decline duel button."""
-    if not callback.data or not callback.from_user:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     duel_id = int(callback.data.replace(DECLINE_DUEL, ""))
@@ -261,17 +276,26 @@ async def callback_decline_duel(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(ACTION_PREFIX))
+@safe_handler
+@log_callback("duel_action")
 async def callback_duel_action(callback: CallbackQuery) -> None:
     """Handle action selection button."""
-    if not callback.data or not callback.from_user:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     # Parse callback data: duel_action:{duel_id}:{action}
     parts = callback.data.replace(ACTION_PREFIX, "").split(":")
     if len(parts) != 2:
+        await callback.answer("Invalid action format.", show_alert=True)
         return
 
-    duel_id = int(parts[0])
+    try:
+        duel_id = int(parts[0])
+    except ValueError:
+        await callback.answer("Invalid duel ID.", show_alert=True)
+        return
+
     action_str = parts[1]
 
     action_map = {
@@ -282,6 +306,7 @@ async def callback_duel_action(callback: CallbackQuery) -> None:
     }
     action_type = action_map.get(action_str)
     if not action_type:
+        await callback.answer("Invalid action type.", show_alert=True)
         return
 
     async with async_session_factory() as session:

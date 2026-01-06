@@ -10,6 +10,13 @@ from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
 from ...db.models.items import Item
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
+from ..utils import (
+    log_callback,
+    log_command,
+    safe_handler,
+    validate_callback_message,
+    validate_message_user,
+)
 
 router = Router(name="dungeons")
 
@@ -152,9 +159,12 @@ def format_dungeon_state(dungeon_state: dict, duel_state: dict | None = None) ->
 
 
 @router.message(Command("dungeon"))
+@safe_handler
+@log_command("/dungeon")
 async def cmd_dungeon(message: Message) -> None:
     """Handle /dungeon command - start or check dungeon status."""
-    if not message.from_user:
+    if not validate_message_user(message):
+        await message.answer("Could not identify user. Please try again.")
         return
 
     async with async_session_factory() as session:
@@ -205,9 +215,12 @@ async def cmd_dungeon(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_START))
+@safe_handler
+@log_callback("start_dungeon")
 async def callback_start_dungeon(callback: CallbackQuery) -> None:
     """Handle dungeon difficulty selection."""
-    if not callback.data or not callback.from_user or not callback.message:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     difficulty_str = callback.data.replace(DUNGEON_START, "")
@@ -257,18 +270,27 @@ async def callback_start_dungeon(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_ACTION))
+@safe_handler
+@log_callback("dungeon_action")
 async def callback_dungeon_action(callback: CallbackQuery) -> None:
     """Handle action selection in dungeon combat."""
-    if not callback.data or not callback.from_user or not callback.message:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     # Parse: dungeon_action:{dungeon_id}:{duel_id}:{action}
     parts = callback.data.replace(DUNGEON_ACTION, "").split(":")
     if len(parts) != 3:
+        await callback.answer("Invalid action format.", show_alert=True)
         return
 
-    dungeon_id = int(parts[0])
-    duel_id = int(parts[1])
+    try:
+        dungeon_id = int(parts[0])
+        duel_id = int(parts[1])
+    except ValueError:
+        await callback.answer("Invalid IDs.", show_alert=True)
+        return
+
     action_str = parts[2]
 
     action_map = {
@@ -279,6 +301,7 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
     }
     action_type = action_map.get(action_str)
     if not action_type:
+        await callback.answer("Invalid action.", show_alert=True)
         return
 
     async with async_session_factory() as session:
@@ -404,12 +427,19 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_ABANDON))
+@safe_handler
+@log_callback("abandon_dungeon")
 async def callback_abandon_dungeon(callback: CallbackQuery) -> None:
     """Handle abandon dungeon button."""
-    if not callback.data or not callback.from_user or not callback.message:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
-    dungeon_id = int(callback.data.replace(DUNGEON_ABANDON, ""))
+    try:
+        dungeon_id = int(callback.data.replace(DUNGEON_ABANDON, ""))
+    except ValueError:
+        await callback.answer("Invalid dungeon ID.", show_alert=True)
+        return
 
     async with async_session_factory() as session:
         player_service = PlayerService(session)
@@ -438,18 +468,26 @@ async def callback_abandon_dungeon(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(REWARD_EQUIP))
+@safe_handler
+@log_callback("equip_reward")
 async def callback_equip_reward(callback: CallbackQuery) -> None:
     """Handle equip reward button."""
-    if not callback.data or not callback.from_user or not callback.message:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     # Parse: reward_equip:{item_id}:{player_id}
     parts = callback.data.replace(REWARD_EQUIP, "").split(":")
     if len(parts) != 2:
+        await callback.answer("Invalid format.", show_alert=True)
         return
 
-    item_id = int(parts[0])
-    expected_player_id = int(parts[1])
+    try:
+        item_id = int(parts[0])
+        expected_player_id = int(parts[1])
+    except ValueError:
+        await callback.answer("Invalid IDs.", show_alert=True)
+        return
 
     async with async_session_factory() as session:
         player_service = PlayerService(session)
@@ -493,9 +531,12 @@ async def callback_equip_reward(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(REWARD_REJECT))
+@safe_handler
+@log_callback("reject_reward")
 async def callback_reject_reward(callback: CallbackQuery) -> None:
     """Handle reject reward button."""
-    if not callback.data or not callback.message:
+    if not callback.data or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
     await callback.message.edit_text(
