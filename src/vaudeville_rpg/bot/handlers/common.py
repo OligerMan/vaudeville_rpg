@@ -6,11 +6,38 @@ from aiogram.types import Message
 from sqlalchemy import func, select
 
 from ...db.engine import async_session_factory
+from ...db.models.items import Item
 from ...db.models.players import Player
+from ...db.models.settings import Setting
 from ...services.players import PlayerService
 from ..utils import log_command, safe_handler, validate_message_user
 
 router = Router(name="common")
+
+
+async def is_setting_configured(chat_id: int) -> tuple[bool, Setting | None]:
+    """Check if the setting for this chat has been properly configured.
+
+    A setting is considered configured if it has items generated.
+
+    Returns:
+        Tuple of (is_configured, setting)
+    """
+    async with async_session_factory() as session:
+        # Get setting for this chat
+        stmt = select(Setting).where(Setting.telegram_chat_id == chat_id)
+        result = await session.execute(stmt)
+        setting = result.scalar_one_or_none()
+
+        if not setting:
+            return False, None
+
+        # Check if setting has any items
+        items_stmt = select(Item).where(Item.setting_id == setting.id).limit(1)
+        items_result = await session.execute(items_stmt)
+        has_items = items_result.scalar_one_or_none() is not None
+
+        return has_items, setting
 
 
 @router.message(Command("start"))
@@ -18,11 +45,32 @@ router = Router(name="common")
 @log_command("/start")
 async def cmd_start(message: Message) -> None:
     """Handle /start command."""
-    await message.answer(
-        "<b>Welcome to VaudevilleRPG!</b>\n\n"
-        "A turn-based duel game where you battle with items and abilities.\n\n"
-        "Use /help to see available commands."
-    )
+    is_configured, setting = await is_setting_configured(message.chat.id)
+
+    if not is_configured:
+        # Game not set up for this chat
+        await message.answer(
+            "<b>Welcome to VaudevilleRPG!</b>\n\n"
+            "A turn-based duel game where you battle with items and abilities.\n\n"
+            "<b>Game Not Set Up</b>\n"
+            "This chat doesn't have a game world yet.\n\n"
+            "An admin needs to generate a setting first:\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n\n"
+            "<i>Example: /generate_setting A dark fantasy world with undead creatures</i>\n\n"
+            "Once the setting is generated, everyone can duel and explore dungeons!"
+        )
+    else:
+        # Game is ready
+        await message.answer(
+            f"<b>Welcome to VaudevilleRPG!</b>\n\n"
+            f"<b>Setting:</b> {setting.name}\n"
+            f"<i>{setting.description or 'A unique game world'}</i>\n\n"
+            "<b>Quick Start:</b>\n"
+            " Reply to someone's message and use /challenge to duel them\n"
+            " Use /dungeon to fight enemies and earn items\n"
+            " Use /profile to see your stats and items\n\n"
+            "Use /help for detailed commands and tips!"
+        )
 
 
 @router.message(Command("help"))
@@ -30,15 +78,48 @@ async def cmd_start(message: Message) -> None:
 @log_command("/help")
 async def cmd_help(message: Message) -> None:
     """Handle /help command."""
-    await message.answer(
-        "<b>Available Commands:</b>\n\n"
-        "/start - Start the bot\n"
+    is_configured, _ = await is_setting_configured(message.chat.id)
+
+    # Base help message
+    help_text = (
+        "<b>VaudevilleRPG Help</b>\n\n"
+        "<b>Getting Started</b>\n"
+        "/start - Welcome message and game status\n"
         "/help - Show this help message\n"
-        "/profile - Show your player stats\n"
-        "/leaderboard - Show top players\n"
-        "/challenge - Reply to a user to challenge them\n"
-        "/dungeon - Start a PvE dungeon run\n"
+        "/profile - View your stats and equipped items\n\n"
     )
+
+    if not is_configured:
+        # Show admin setup info
+        help_text += (
+            "<b>Admin Setup (Required First!)</b>\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n"
+            "Creates a unique game world with items and abilities.\n"
+            "<i>Example: /generate_setting Steampunk Victorian London</i>\n\n"
+        )
+
+    # Dueling section
+    help_text += (
+        "<b>Dueling (PvP)</b>\n"
+        "/challenge - Challenge another player\n"
+        "<i>How to use: Reply to someone's message, then type /challenge</i>\n"
+        "Both players pick actions (Attack/Defense/Misc/Skip).\n"
+        "Winner gains rating, loser loses rating.\n\n"
+    )
+
+    # Dungeon section
+    help_text += (
+        "<b>Dungeons (PvE)</b>\n"
+        "/dungeon - Start a dungeon run\n"
+        "Fight through stages of enemies solo.\n"
+        "Difficulties: Easy (2 stages), Normal (3), Hard (4), Nightmare (5)\n"
+        "Defeat all enemies to earn new items!\n\n"
+    )
+
+    # Competition section
+    help_text += "<b>Competition</b>\n/leaderboard - See top 10 players by rating\nWin duels to climb the ranks!\n"
+
+    await message.answer(help_text)
 
 
 @router.message(Command("profile"))
