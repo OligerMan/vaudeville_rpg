@@ -83,9 +83,7 @@ def log_command(command: str) -> Callable:
                     chat_id = arg.chat.id
                     username = arg.from_user.username if arg.from_user else None
 
-                    logger.info(
-                        f"Command {command} from user {user_id} (@{username}) in chat {chat_id}"
-                    )
+                    logger.info(f"Command {command} from user {user_id} (@{username}) in chat {chat_id}")
                     break
 
             return await func(*args, **kwargs)
@@ -112,9 +110,7 @@ def log_callback(action: str) -> Callable:
                     chat_id = arg.message.chat.id if arg.message else None
                     username = arg.from_user.username
 
-                    logger.info(
-                        f"Callback {action} from user {user_id} (@{username}) in chat {chat_id}"
-                    )
+                    logger.info(f"Callback {action} from user {user_id} (@{username}) in chat {chat_id}")
                     break
 
             return await func(*args, **kwargs)

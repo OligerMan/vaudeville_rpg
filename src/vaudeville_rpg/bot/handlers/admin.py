@@ -1,6 +1,5 @@
 """Admin handlers - setting generation and management."""
 
-
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -134,9 +133,7 @@ async def cmd_generate_setting(message: Message, bot: Bot) -> None:
                 description=description,
             )
             # Delete any existing pending for this chat
-            await session.execute(
-                delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id)
-            )
+            await session.execute(delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id))
             session.add(pending)
             await session.commit()
 
@@ -243,9 +240,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
 
         # Check if expired
         if pending.is_expired():
-            await session.execute(
-                delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id)
-            )
+            await session.execute(delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id))
             await session.commit()
             await callback.answer("Generation request expired. Please try again.", show_alert=True)
             await callback.message.edit_text("Generation request expired.")
@@ -254,9 +249,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
         description = pending.description
 
         # Delete pending record
-        await session.execute(
-            delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id)
-        )
+        await session.execute(delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id))
 
         # Delete existing setting
         settings_service = SettingsService(session)
@@ -331,9 +324,7 @@ async def callback_cancel_generate(callback: CallbackQuery) -> None:
 
     # Remove pending description from database
     async with async_session_factory() as session:
-        await session.execute(
-            delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id)
-        )
+        await session.execute(delete(PendingGeneration).where(PendingGeneration.chat_id == chat_id))
         await session.commit()
 
     await callback.message.edit_text("Setting generation cancelled.")
