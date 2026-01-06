@@ -8,6 +8,13 @@ from ...config import get_settings
 from ...db.engine import async_session_factory
 from ...llm.setting_factory import SettingFactory
 from ...services.settings import SettingsService
+from ..utils import (
+    log_callback,
+    log_command,
+    safe_handler,
+    validate_callback_message,
+    validate_message_user,
+)
 
 router = Router(name="admin")
 
@@ -68,13 +75,16 @@ def get_confirm_keyboard(chat_id: int) -> InlineKeyboardMarkup:
 
 
 @router.message(Command("generate_setting"))
+@safe_handler
+@log_command("/generate_setting")
 async def cmd_generate_setting(message: Message, bot: Bot) -> None:
     """Handle /generate_setting command - generate a new game setting.
 
     Usage: /generate_setting <description>
     Example: /generate_setting A dark fantasy world with necromancy and holy magic
     """
-    if not message.from_user:
+    if not validate_message_user(message):
+        await message.answer("Could not identify user.")
         return
 
     user_id = message.from_user.id
@@ -193,12 +203,19 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
 
 
 @router.callback_query(F.data.startswith(CONFIRM_GENERATE))
+@safe_handler
+@log_callback("confirm_generate")
 async def callback_confirm_generate(callback: CallbackQuery) -> None:
     """Handle confirmation to replace existing setting."""
-    if not callback.data or not callback.message or not callback.from_user:
+    if not callback.data or not callback.from_user or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
-    chat_id = int(callback.data.replace(CONFIRM_GENERATE, ""))
+    try:
+        chat_id = int(callback.data.replace(CONFIRM_GENERATE, ""))
+    except ValueError:
+        await callback.answer("Invalid chat ID.", show_alert=True)
+        return
 
     # Verify the user is still an admin
     if not await is_admin(callback.from_user.id, chat_id, callback.bot):
@@ -269,12 +286,19 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(CANCEL_GENERATE))
+@safe_handler
+@log_callback("cancel_generate")
 async def callback_cancel_generate(callback: CallbackQuery) -> None:
     """Handle cancellation of setting generation."""
-    if not callback.data or not callback.message:
+    if not callback.data or not validate_callback_message(callback):
+        await callback.answer("Invalid request.", show_alert=True)
         return
 
-    chat_id = int(callback.data.replace(CANCEL_GENERATE, ""))
+    try:
+        chat_id = int(callback.data.replace(CANCEL_GENERATE, ""))
+    except ValueError:
+        await callback.answer("Invalid chat ID.", show_alert=True)
+        return
 
     # Remove pending description
     _pending_generations.pop(chat_id, None)
