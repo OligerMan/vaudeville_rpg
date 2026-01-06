@@ -1,8 +1,14 @@
 """Common bot handlers - /start, /help commands."""
 
-from aiogram import Router
+import logging
+
+from aiogram import Bot, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.filters.chat_member_updated import (
+    JOIN_TRANSITION,
+    ChatMemberUpdatedFilter,
+)
+from aiogram.types import ChatMemberUpdated, Message
 from sqlalchemy import func, select
 
 from ...db.engine import async_session_factory
@@ -11,6 +17,8 @@ from ...db.models.players import Player
 from ...db.models.settings import Setting
 from ...services.players import PlayerService
 from ..utils import log_command, safe_handler, validate_message_user
+
+logger = logging.getLogger(__name__)
 
 router = Router(name="common")
 
@@ -38,6 +46,65 @@ async def is_setting_configured(chat_id: int) -> tuple[bool, Setting | None]:
         has_items = items_result.scalar_one_or_none() is not None
 
         return has_items, setting
+
+
+@router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=JOIN_TRANSITION))
+async def on_bot_added_to_chat(event: ChatMemberUpdated, bot: Bot) -> None:
+    """Handle when bot is added to a chat.
+
+    Sends a welcome message explaining the game and setup process.
+    """
+    chat_id = event.chat.id
+    logger.info(f"Bot added to chat {chat_id}")
+
+    # Check if user who added bot is an admin
+    try:
+        member = await bot.get_chat_member(chat_id, event.from_user.id)
+        is_admin = member.status in ("creator", "administrator")
+    except Exception:
+        is_admin = False
+
+    # Check if setting already exists and is configured
+    is_configured, setting = await is_setting_configured(chat_id)
+
+    if is_configured:
+        # Setting already exists, welcome back
+        await bot.send_message(
+            chat_id,
+            f"<b>VaudevilleRPG is back!</b>\n\n"
+            f"<b>Setting:</b> {setting.name}\n"
+            f"<i>{setting.description or 'A unique game world'}</i>\n\n"
+            "Use /help to see available commands.",
+        )
+    elif is_admin:
+        # Admin added the bot, prompt to generate setting
+        await bot.send_message(
+            chat_id,
+            "<b>Thanks for adding VaudevilleRPG!</b>\n\n"
+            "I'm a turn-based duel game where players battle using items and abilities.\n\n"
+            "<b>Setup Required</b>\n"
+            "To start playing, you need to generate a game world.\n"
+            "As an admin, run this command:\n\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n\n"
+            "<i>Example themes:</i>\n"
+            " Medieval fantasy kingdom\n"
+            " Cyberpunk dystopia\n"
+            " Pirate adventure on the high seas\n"
+            " Post-apocalyptic wasteland\n\n"
+            "Once generated, everyone can duel each other and explore dungeons!",
+        )
+    else:
+        # Non-admin added the bot
+        await bot.send_message(
+            chat_id,
+            "<b>Thanks for adding VaudevilleRPG!</b>\n\n"
+            "I'm a turn-based duel game where players battle using items and abilities.\n\n"
+            "<b>Setup Required</b>\n"
+            "An admin needs to generate a game world first.\n"
+            "Ask an admin to run:\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n\n"
+            "Use /help for more information!",
+        )
 
 
 @router.message(Command("start"))
