@@ -3,9 +3,11 @@
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from sqlalchemy import select
 
 from ...db.engine import async_session_factory
-from ...db.models.enums import DuelActionType, DungeonDifficulty
+from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
+from ...db.models.items import Item
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
 
@@ -16,6 +18,11 @@ router = Router(name="dungeons")
 DUNGEON_START = "dungeon_start:"
 DUNGEON_ACTION = "dungeon_action:"
 DUNGEON_ABANDON = "dungeon_abandon:"
+REWARD_EQUIP = "reward_equip:"
+REWARD_REJECT = "reward_reject:"
+
+# Rarity display names
+RARITY_NAMES = {1: "Common", 2: "Uncommon", 3: "Rare", 4: "Epic", 5: "Legendary"}
 
 
 def get_difficulty_keyboard() -> InlineKeyboardMarkup:
@@ -78,6 +85,45 @@ def get_dungeon_action_keyboard(duel_id: int, dungeon_id: int) -> InlineKeyboard
             ],
         ]
     )
+
+
+def get_reward_keyboard(reward_item_id: int, player_id: int) -> InlineKeyboardMarkup:
+    """Create equip/reject keyboard for dungeon reward."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Equip",
+                    callback_data=f"{REWARD_EQUIP}{reward_item_id}:{player_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Reject",
+                    callback_data=f"{REWARD_REJECT}{reward_item_id}",
+                ),
+            ]
+        ]
+    )
+
+
+def format_reward_comparison(reward_item: Item, current_item: Item | None, slot_name: str) -> str:
+    """Format reward item comparison with current equipped item."""
+    rarity = RARITY_NAMES.get(reward_item.rarity, "Unknown")
+
+    lines = [
+        f"<b>Reward: {reward_item.name}</b>",
+        f"Rarity: {rarity}",
+        f"Slot: {slot_name}",
+        f"<i>{reward_item.description}</i>",
+        "",
+    ]
+
+    if current_item:
+        current_rarity = RARITY_NAMES.get(current_item.rarity, "Unknown")
+        lines.append(f"<b>Current {slot_name}:</b> {current_item.name} ({current_rarity})")
+    else:
+        lines.append(f"<b>Current {slot_name}:</b> None")
+
+    return "\n".join(lines)
 
 
 def format_dungeon_state(dungeon_state: dict, duel_state: dict | None = None) -> str:
@@ -295,10 +341,41 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
             await session.commit()
 
             if dungeon_result.dungeon_completed:
-                await callback.message.edit_text(
-                    dungeon_result.message,
-                    reply_markup=None,
-                )
+                # Check if there's a reward
+                if dungeon_result.reward_item_id:
+                    # Get reward item details
+                    reward_stmt = select(Item).where(Item.id == dungeon_result.reward_item_id)
+                    reward_result = await session.execute(reward_stmt)
+                    reward_item = reward_result.scalar_one_or_none()
+
+                    if reward_item:
+                        # Get current item in the same slot for comparison
+                        current_item = None
+                        slot_name = reward_item.slot.value.title()
+
+                        if reward_item.slot == ItemSlot.ATTACK:
+                            current_item = player.attack_item
+                        elif reward_item.slot == ItemSlot.DEFENSE:
+                            current_item = player.defense_item
+                        elif reward_item.slot == ItemSlot.MISC:
+                            current_item = player.misc_item
+
+                        comparison = format_reward_comparison(reward_item, current_item, slot_name)
+
+                        await callback.message.edit_text(
+                            f"{dungeon_result.message}\n\n{comparison}",
+                            reply_markup=get_reward_keyboard(reward_item.id, player.id),
+                        )
+                    else:
+                        await callback.message.edit_text(
+                            dungeon_result.message,
+                            reply_markup=None,
+                        )
+                else:
+                    await callback.message.edit_text(
+                        dungeon_result.message,
+                        reply_markup=None,
+                    )
             elif dungeon_result.dungeon_failed:
                 await callback.message.edit_text(
                     dungeon_result.message,
@@ -358,3 +435,71 @@ async def callback_abandon_dungeon(callback: CallbackQuery) -> None:
             reply_markup=None,
         )
         await callback.answer("Dungeon abandoned.")
+
+
+@router.callback_query(F.data.startswith(REWARD_EQUIP))
+async def callback_equip_reward(callback: CallbackQuery) -> None:
+    """Handle equip reward button."""
+    if not callback.data or not callback.from_user or not callback.message:
+        return
+
+    # Parse: reward_equip:{item_id}:{player_id}
+    parts = callback.data.replace(REWARD_EQUIP, "").split(":")
+    if len(parts) != 2:
+        return
+
+    item_id = int(parts[0])
+    expected_player_id = int(parts[1])
+
+    async with async_session_factory() as session:
+        player_service = PlayerService(session)
+
+        setting = await player_service.get_or_create_setting(callback.message.chat.id)
+        player = await player_service.get_or_create_player(
+            telegram_user_id=callback.from_user.id,
+            setting_id=setting.id,
+            display_name=callback.from_user.full_name,
+        )
+
+        # Verify this is the correct player
+        if player.id != expected_player_id:
+            await callback.answer("This reward is not for you!", show_alert=True)
+            return
+
+        # Get the reward item
+        item_stmt = select(Item).where(Item.id == item_id)
+        item_result = await session.execute(item_stmt)
+        reward_item = item_result.scalar_one_or_none()
+
+        if not reward_item:
+            await callback.answer("Item not found!", show_alert=True)
+            return
+
+        # Equip the item in the appropriate slot
+        if reward_item.slot == ItemSlot.ATTACK:
+            player.attack_item_id = reward_item.id
+        elif reward_item.slot == ItemSlot.DEFENSE:
+            player.defense_item_id = reward_item.id
+        elif reward_item.slot == ItemSlot.MISC:
+            player.misc_item_id = reward_item.id
+
+        await session.commit()
+
+        await callback.message.edit_text(
+            f"Equipped <b>{reward_item.name}</b>!",
+            reply_markup=None,
+        )
+        await callback.answer("Item equipped!")
+
+
+@router.callback_query(F.data.startswith(REWARD_REJECT))
+async def callback_reject_reward(callback: CallbackQuery) -> None:
+    """Handle reject reward button."""
+    if not callback.data or not callback.message:
+        return
+
+    await callback.message.edit_text(
+        "Reward rejected. Better luck next time!",
+        reply_markup=None,
+    )
+    await callback.answer("Reward rejected.")

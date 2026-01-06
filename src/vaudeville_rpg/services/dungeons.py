@@ -8,8 +8,17 @@ from sqlalchemy.orm import selectinload
 
 from ..db.models.dungeons import Dungeon, DungeonEnemy
 from ..db.models.enums import DungeonDifficulty, DungeonStatus
+from ..db.models.items import Item
 from ..engine.duel import DuelEngine
 from .enemies import EnemyGenerator
+
+# Rarity range by difficulty for rewards
+REWARD_RARITY_BY_DIFFICULTY: dict[DungeonDifficulty, tuple[int, int]] = {
+    DungeonDifficulty.EASY: (1, 1),  # Common only
+    DungeonDifficulty.NORMAL: (1, 2),  # Common-Uncommon
+    DungeonDifficulty.HARD: (2, 3),  # Uncommon-Rare
+    DungeonDifficulty.NIGHTMARE: (2, 3),  # Uncommon-Rare
+}
 
 
 @dataclass
@@ -23,6 +32,7 @@ class DungeonResult:
     stage_completed: bool = False
     dungeon_completed: bool = False
     dungeon_failed: bool = False
+    reward_item_id: int | None = None  # Reward item for dungeon completion
 
 
 class DungeonService:
@@ -170,11 +180,16 @@ class DungeonService:
                 dungeon.current_duel_id = None
                 await self.session.flush()
 
+                # Generate reward item based on difficulty
+                reward_item = await self._generate_reward(dungeon)
+                reward_item_id = reward_item.id if reward_item else None
+
                 return DungeonResult(
                     success=True,
                     message=f"🎉 {dungeon.name} completed! All {dungeon.total_stages} stages cleared!",
                     dungeon_id=dungeon.id,
                     dungeon_completed=True,
+                    reward_item_id=reward_item_id,
                 )
 
             # Advance to next stage
@@ -321,3 +336,31 @@ class DungeonService:
                 return "Abyss of Torment"
             case _:
                 return "Mysterious Dungeon"
+
+    async def _generate_reward(self, dungeon: Dungeon) -> Item | None:
+        """Generate a reward item for dungeon completion.
+
+        Args:
+            dungeon: Completed dungeon
+
+        Returns:
+            Reward item or None
+        """
+        import random
+
+        # Get rarity range for this difficulty
+        min_rarity, max_rarity = REWARD_RARITY_BY_DIFFICULTY.get(dungeon.difficulty, (1, 1))
+
+        # Query items within the rarity range for this setting
+        stmt = select(Item).where(
+            Item.setting_id == dungeon.setting_id,
+            Item.rarity >= min_rarity,
+            Item.rarity <= max_rarity,
+        )
+        result = await self.session.execute(stmt)
+        items = list(result.scalars().all())
+
+        if not items:
+            return None
+
+        return random.choice(items)
