@@ -7,8 +7,8 @@ This file tracks development progress to restore context between sessions.
 ## Current State
 
 **Branch:** `master`
-**Last Updated:** 2026-01-05
-**Last Commit:** Merge branch 'feature/phase-system-refactor'
+**Last Updated:** 2026-01-07
+**Last Commit:** UX improvements - setting checks, auto-welcome, improved /start and /help
 
 ### Completed Phases
 
@@ -26,12 +26,70 @@ This file tracks development progress to restore context between sessions.
 - [x] Content validation layer (validators)
 - [x] JSON parsing and database integration (parser)
 - [x] SettingFactory pipeline orchestration
-- [ ] Balance tuning
-- [ ] Telegram UI/UX improvements
+- [x] Telegram UI/UX improvements (auto-welcome, improved help, setting checks)
+- [x] Database persistence tests with PostgreSQL
+- [x] Enemy balancing (Easy difficulty now beatable)
+- [ ] Balance tuning (ongoing)
+- [ ] Local LLM setup with vLLM (in progress)
 
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-07
+
+**Completed:** Bot UX Improvements + Database Setup + vLLM Planning
+
+#### What Was Done
+
+1. **PostgreSQL Database Setup**
+   - Dropped old database with migration conflicts
+   - Created fresh database with single clean migration (`f37f8c1fd0f5_initial_schema.py`)
+   - Added database persistence tests (`tests/test_db_duel_persistence.py`)
+
+2. **Enemy Generator Fix & Balancing**
+   - Fixed enemies to equip items based on difficulty and rarity
+   - Balanced enemy stats for Easy difficulty (40 HP instead of 60)
+   - Easy enemies now beatable with starter items
+   - Added tests (`tests/test_enemy_generation.py`)
+
+3. **Bot UX Improvements** (4 commits):
+   - **Improved /start**: Shows setting status, quick start guide if configured
+   - **Improved /help**: Detailed sections (Getting Started, Dueling, Dungeons, Competition)
+   - **Auto-welcome on bot join**: Detects when bot added to chat, prompts admin to generate setting
+   - **Setting checks**: `/challenge` and `/dungeon` blocked if no setting generated
+   - Added `is_setting_configured()` helper function
+   - Tests in `tests/test_bot_ux.py`
+
+4. **Pushed to GitHub**: Repository now on GitHub
+
+5. **vLLM Setup Planning** (in progress):
+   - Chose Docker + vLLM approach for Windows
+   - Selected model: `Qwen/Qwen2.5-7B-Instruct-AWQ` (fits 8GB VRAM)
+   - Updated `.env` with vLLM configuration
+
+#### Key Files Added/Modified
+- `src/vaudeville_rpg/bot/handlers/common.py` - UX improvements, auto-welcome
+- `src/vaudeville_rpg/bot/handlers/duels.py` - Setting check
+- `src/vaudeville_rpg/bot/handlers/dungeons.py` - Setting check
+- `src/vaudeville_rpg/services/enemies.py` - Item equipping, stat balancing
+- `tests/test_bot_ux.py` - NEW (10 tests)
+- `tests/test_enemy_generation.py` - NEW (11 tests)
+- `tests/test_db_duel_persistence.py` - NEW (9 tests)
+- `alembic/versions/f37f8c1fd0f5_initial_schema.py` - Clean migration
+
+#### Test Coverage
+- **Total tests:** 284 passing
+
+#### Commits (2026-01-07)
+```
+abccca9 test: Add UX tests for setting configuration checks
+eb9f902 feat: Add setting checks before allowing duels and dungeons
+8e7c3aa feat: Add auto-welcome message when bot is added to chat
+ed1febf feat: Improve /start and /help commands with setting-aware messages
+```
+
+---
 
 ### Session: 2026-01-05
 
@@ -249,19 +307,54 @@ ConditionEvaluator + ActionExecutor
 
 ## Next Steps
 
-### Immediate (Phase 5 - Remaining)
+### Immediate: vLLM Local LLM Setup
+
+**Hardware:** NVIDIA RTX 3070 Ti (8GB VRAM)
+**Model:** `Qwen/Qwen2.5-7B-Instruct-AWQ` (AWQ quantized, fits 8GB)
+
+#### Step 1: Start vLLM with Docker (Windows)
+
+```powershell
+docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest --model Qwen/Qwen2.5-7B-Instruct-AWQ --gpu-memory-utilization 0.9 --max-model-len 4096
+```
+
+**Notes:**
+- First run downloads ~4GB model from HuggingFace
+- Requires Docker Desktop with WSL2 backend + GPU support
+- Wait for "Uvicorn running on http://0.0.0.0:8000"
+
+#### Step 2: Verify Connection
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+#### Step 3: Start Bot
+
+```bash
+.venv/Scripts/python -m vaudeville_rpg
+```
+
+#### Current .env Configuration (already set)
+
+```
+LLM_PROVIDER=openai
+LLM_BASE_URL=http://localhost:8000/v1
+LLM_API_KEY=dummy
+LLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
+```
+
+---
+
+### Remaining Phase 5 Tasks
+
 1. **Balance Tuning**
    - Adjust HP/SP values
    - Effect damage/healing values
    - Dungeon difficulty scaling
 
-2. **UI/UX Polish**
-   - Better duel state display
-   - Progress messages
-   - Error handling improvements
-
-3. **Integration Testing**
-   - End-to-end content generation
+2. **Integration Testing**
+   - End-to-end content generation with local LLM
    - Full game flow testing
 
 ---
