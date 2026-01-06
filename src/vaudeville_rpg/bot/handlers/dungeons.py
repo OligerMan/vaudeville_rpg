@@ -17,6 +17,7 @@ from ..utils import (
     validate_callback_message,
     validate_message_user,
 )
+from .common import is_setting_configured
 
 router = Router(name="dungeons")
 
@@ -165,6 +166,18 @@ async def cmd_dungeon(message: Message) -> None:
     """Handle /dungeon command - start or check dungeon status."""
     if not validate_message_user(message):
         await message.answer("Could not identify user. Please try again.")
+        return
+
+    # Check if game is set up for this chat
+    is_configured, _ = await is_setting_configured(message.chat.id)
+    if not is_configured:
+        await message.answer(
+            "<b>Game Not Set Up</b>\n\n"
+            "This chat doesn't have a game world yet.\n"
+            "An admin needs to run:\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n\n"
+            "Once the setting is generated, you can explore dungeons!"
+        )
         return
 
     async with async_session_factory() as session:

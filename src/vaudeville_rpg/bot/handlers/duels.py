@@ -15,6 +15,7 @@ from ..utils import (
     validate_callback_message,
     validate_reply_message,
 )
+from .common import is_setting_configured
 
 router = Router(name="duels")
 
@@ -116,6 +117,18 @@ async def cmd_challenge(message: Message) -> None:
     """Handle /challenge command - initiate a duel."""
     if not validate_reply_message(message):
         await message.answer("Reply to a user's message with /challenge to challenge them to a duel!")
+        return
+
+    # Check if game is set up for this chat
+    is_configured, _ = await is_setting_configured(message.chat.id)
+    if not is_configured:
+        await message.answer(
+            "⚠️ <b>Game Not Set Up</b>\n\n"
+            "This chat doesn't have a game world yet.\n"
+            "An admin needs to run:\n"
+            "<code>/generate_setting &lt;description&gt;</code>\n\n"
+            "Once the setting is generated, you can challenge other players!"
+        )
         return
 
     challenger = message.from_user
