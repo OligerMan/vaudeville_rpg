@@ -283,15 +283,26 @@ Each effect needs:
 - slot_type: attack, defense, or misc
 - actions: list of actions with rarity-scaled values
 
+IMPORTANT: ALL numeric values MUST be integers (whole numbers), NEVER floats.
+
 Rarity scaling (common → legendary should increase power):
-- Common: base values
-- Uncommon: ~1.5x
-- Rare: ~2x
-- Epic: ~2.5x
-- Legendary: ~3x
+Example scaling for damage value starting at 10:
+- Common: 10 (base)
+- Uncommon: 15 (50% more)
+- Rare: 20 (2x)
+- Epic: 25 (2.5x)
+- Legendary: 30 (3x)
+
+Example scaling for stack value starting at 1:
+- Common: 1
+- Uncommon: 2
+- Rare: 3
+- Epic: 4
+- Legendary: 5
 
 CRITICAL: When using "add_stacks" or "remove_stacks" action_type, the "attribute" field MUST be one of the attributes listed above.
 Do NOT invent new attributes. Only use attributes from the Available Attributes list.
+ALL values in the "values" object MUST be integers like 10, 15, 20 - NOT floats like 10.5, 15.5, 20.5.
 
 Respond with JSON:
 {{
@@ -308,11 +319,11 @@ Respond with JSON:
                     "target": "self|enemy",
                     "attribute": "string or null",
                     "values": {{
-                        "common": number,
-                        "uncommon": number,
-                        "rare": number,
-                        "epic": number,
-                        "legendary": number
+                        "common": integer (whole number like 10, NOT 10.5),
+                        "uncommon": integer (whole number like 15, NOT 15.5),
+                        "rare": integer (whole number like 20, NOT 20.5),
+                        "epic": integer (whole number like 25, NOT 25.5),
+                        "legendary": integer (whole number like 30, NOT 30.5)
                     }}
                 }}
             ]
@@ -376,24 +387,26 @@ Each type needs:
 - description: flavor text
 - base values scaled by rarity (for attack: damage, defense: armor, misc: heal)
 
-Rarity scaling for base values:
-- Common: 8-10
-- Uncommon: 12-15
-- Rare: 18-22
-- Epic: 25-30
-- Legendary: 35-40
+IMPORTANT: ALL base values MUST be integers (whole numbers), NEVER floats.
+
+Rarity scaling for base values (use whole numbers only):
+- Common: 8-10 (e.g., 8, 9, or 10)
+- Uncommon: 12-15 (e.g., 12, 13, 14, or 15)
+- Rare: 18-22 (e.g., 18, 19, 20, 21, or 22)
+- Epic: 25-30 (e.g., 25, 26, 27, 28, 29, or 30)
+- Legendary: 35-40 (e.g., 35, 36, 37, 38, 39, or 40)
 
 CRITICAL: Item names and descriptions should reference or complement the attributes listed above.
 Create items that make thematic sense with these attributes and the world they exist in.
 
-Respond with JSON:
+Respond with JSON (ALL values must be integers, NOT floats):
 {{
     "attack_types": [
         {{
             "name": "string",
             "slot": "attack",
             "description": "string",
-            "base_damage": {{"common": n, "uncommon": n, "rare": n, "epic": n, "legendary": n}}
+            "base_damage": {{"common": integer, "uncommon": integer, "rare": integer, "epic": integer, "legendary": integer}}
         }}
     ],
     "defense_types": [
@@ -401,7 +414,7 @@ Respond with JSON:
             "name": "string",
             "slot": "defense",
             "description": "string",
-            "base_armor": {{"common": n, "uncommon": n, "rare": n, "epic": n, "legendary": n}}
+            "base_armor": {{"common": integer, "uncommon": integer, "rare": integer, "epic": integer, "legendary": integer}}
         }}
     ],
     "misc_types": [
@@ -409,7 +422,7 @@ Respond with JSON:
             "name": "string",
             "slot": "misc",
             "description": "string",
-            "base_heal": {{"common": n, "uncommon": n, "rare": n, "epic": n, "legendary": n}}
+            "base_heal": {{"common": integer, "uncommon": integer, "rare": integer, "epic": integer, "legendary": integer}}
         }}
     ]
 }}"""
