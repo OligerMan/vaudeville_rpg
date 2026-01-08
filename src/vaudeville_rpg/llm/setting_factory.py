@@ -155,7 +155,14 @@ class SettingFactory:
             # Step 2: Generate world rules for each attribute
             world_rules_list: list[GeneratedWorldRules] = []
             for attr in generated_setting.attributes:
-                rules_step = await self._step_generate_world_rules(attr, attribute_names, validate, retry_on_validation_fail, max_retries)
+                rules_step = await self._step_generate_world_rules(
+                    attr,
+                    attribute_names,
+                    generated_setting.broad_description,
+                    validate,
+                    retry_on_validation_fail,
+                    max_retries,
+                )
                 result.add_step(rules_step)
                 if not rules_step.success:
                     result.message = f"Failed generating rules for {attr.name}: {rules_step.message}"
@@ -261,6 +268,7 @@ class SettingFactory:
         self,
         attr,
         known_attributes: set[str],
+        setting_description: str,
         validate: bool,
         retry: bool,
         max_retries: int,
@@ -275,6 +283,8 @@ class SettingFactory:
                     display_name=attr.display_name,
                     description=attr.description,
                     is_positive=attr.is_positive,
+                    setting_description=setting_description,
+                    known_attributes=known_attributes,
                 )
 
                 if validate:

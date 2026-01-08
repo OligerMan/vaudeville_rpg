@@ -96,11 +96,18 @@ class WorldRulesGenerator:
 
     SYSTEM_PROMPT = """You are a game mechanics designer for a turn-based RPG.
 Your task is to convert attribute descriptions into formal game rules.
-Always respond with valid JSON matching the requested schema."""
+Always respond with valid JSON matching the requested schema.
+CRITICAL: You must ONLY reference attributes that exist in the world."""
 
-    GENERATION_PROMPT = """Convert this attribute into formal game rules:
+    GENERATION_PROMPT = """Convert this attribute into formal game rules for this setting:
 
-Attribute: {name} ({display_name})
+Setting: {setting_description}
+
+Available Attributes (you MUST only reference these):
+{known_attributes_list}
+
+Attribute to generate rules for:
+Name: {name} ({display_name})
 Description: {description}
 Is Positive: {is_positive}
 
@@ -114,6 +121,9 @@ Common patterns:
 Available phases: pre_move, post_move, pre_attack, post_attack, pre_damage, post_damage
 Available action_types: damage, heal, add_stacks, remove_stacks, reduce_incoming_damage
 Target is usually "self" (the player who has the stacks)
+
+CRITICAL: All rules must ONLY reference attributes from the "Available Attributes" list above.
+Use the exact attribute names provided. Do NOT invent new attributes.
 
 Respond with JSON:
 {{
@@ -129,7 +139,7 @@ Respond with JSON:
             "action": {{
                 "action_type": "string",
                 "value": number,
-                "attribute": "string or null"
+                "attribute": "string or null (MUST be from Available Attributes list)"
             }},
             "per_stack": boolean
         }}
@@ -139,7 +149,15 @@ Respond with JSON:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def generate(self, attribute_name: str, display_name: str, description: str, is_positive: bool) -> GeneratedWorldRules:
+    async def generate(
+        self,
+        attribute_name: str,
+        display_name: str,
+        description: str,
+        is_positive: bool,
+        setting_description: str = "",
+        known_attributes: set[str] | None = None,
+    ) -> GeneratedWorldRules:
         """Generate world rules for an attribute.
 
         Args:
@@ -147,11 +165,21 @@ Respond with JSON:
             display_name: Display name
             description: Flavor description
             is_positive: Whether it's a buff or debuff
+            setting_description: Broad description of the setting
+            known_attributes: Set of known attribute names
 
         Returns:
             GeneratedWorldRules with formal rule definitions
         """
+        # Format known attributes list
+        if known_attributes:
+            attrs_list = "\n".join(f"- {attr}" for attr in sorted(known_attributes))
+        else:
+            attrs_list = f"- {attribute_name}"
+
         prompt = self.GENERATION_PROMPT.format(
+            setting_description=setting_description or "A fantasy world",
+            known_attributes_list=attrs_list,
             name=attribute_name,
             display_name=display_name,
             description=description,
@@ -238,7 +266,7 @@ Respond with JSON:
             setting_description=setting_description,
             attributes=", ".join(attributes),
         )
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=8192)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
         data = _extract_json(response.content)
 
         # Convert to proper schema
@@ -318,7 +346,7 @@ Respond with JSON:
             GeneratedItemTypes with item type definitions
         """
         prompt = self.GENERATION_PROMPT.format(setting_description=setting_description)
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=8192)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
         data = _extract_json(response.content)
 
         # Convert to proper schema
