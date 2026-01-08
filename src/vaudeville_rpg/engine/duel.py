@@ -299,11 +299,14 @@ class DuelEngine:
                 {
                     "participant_id": p.id,
                     "player_id": p.player_id,
+                    "display_name": p.player.display_name,
                     "turn_order": p.turn_order,
                     "is_ready": p.is_ready,
                     "combat_state": {
                         "current_hp": combat_states[p.player_id].current_hp,
+                        "max_hp": combat_states[p.player_id].max_hp,
                         "current_special_points": combat_states[p.player_id].current_special_points,
+                        "max_special_points": combat_states[p.player_id].max_special_points,
                         "attribute_stacks": combat_states[p.player_id].attribute_stacks,
                     }
                     if p.player_id in combat_states
@@ -376,8 +379,14 @@ class DuelEngine:
         )
 
     async def _load_duel(self, duel_id: int) -> Duel | None:
-        """Load a duel with its participants."""
-        stmt = select(Duel).where(Duel.id == duel_id).options(selectinload(Duel.participants))
+        """Load a duel with its participants and their players."""
+        stmt = (
+            select(Duel)
+            .where(Duel.id == duel_id)
+            .options(
+                selectinload(Duel.participants).selectinload(DuelParticipant.player)
+            )
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
