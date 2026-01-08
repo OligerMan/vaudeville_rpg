@@ -276,7 +276,15 @@ async def callback_start_dungeon(callback: CallbackQuery) -> None:
             await callback.answer("Error loading dungeon.", show_alert=True)
             return
 
-        text = format_dungeon_state(dungeon_state)
+        # Get duel state to show HP/SP
+        duel_state = None
+        if result.duel_id:
+            from ...services.duels import DuelService
+
+            duel_service = DuelService(session)
+            duel_state = await duel_service.get_duel_state(result.duel_id)
+
+        text = format_dungeon_state(dungeon_state, duel_state)
 
         await callback.message.edit_text(
             f"{result.message}\n\n{text}\n\nChoose your action:",
@@ -442,7 +450,12 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
                 # Stage cleared, moving to next
                 dungeon_state = await dungeon_service.get_dungeon_state(dungeon_id)
                 if dungeon_state:
-                    text = format_dungeon_state(dungeon_state)
+                    # Get duel state for next stage to show HP/SP
+                    next_duel_state = None
+                    if dungeon_result.duel_id:
+                        next_duel_state = await duel_service.get_duel_state(dungeon_result.duel_id)
+
+                    text = format_dungeon_state(dungeon_state, next_duel_state)
                     result_text = dungeon_result.message
                     if turn_result:
                         result_text += format_turn_result(turn_result)
