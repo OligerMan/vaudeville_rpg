@@ -300,6 +300,7 @@ class DuelEngine:
                     "participant_id": p.id,
                     "player_id": p.player_id,
                     "display_name": p.player.display_name,
+                    "is_bot": p.player.is_bot,
                     "turn_order": p.turn_order,
                     "is_ready": p.is_ready,
                     "combat_state": {
