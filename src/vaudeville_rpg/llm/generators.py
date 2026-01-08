@@ -97,7 +97,8 @@ class WorldRulesGenerator:
     SYSTEM_PROMPT = """You are a game mechanics designer for a turn-based RPG.
 Your task is to convert attribute descriptions into formal game rules.
 Always respond with valid JSON matching the requested schema.
-CRITICAL: You must ONLY reference attributes that exist in the world."""
+CRITICAL: You must ONLY reference attributes that exist in the world.
+Most temporary effects should include decay mechanics to prevent infinite stacking."""
 
     GENERATION_PROMPT = """Convert this attribute into formal game rules for this setting:
 
@@ -132,11 +133,60 @@ IMPORTANT: All "value" fields MUST be integers (whole numbers like 5, 10, 15), N
 
 Target is usually "self" (the player who has the stacks)
 
-Common patterns:
-- Tick effects: Trigger PRE_MOVE (start of turn) - damage, heal, etc.
-- Decay: Trigger POST_MOVE (end of turn) - remove 1 stack
-- Damage reduction: Trigger PRE_DAMAGE - reduce incoming damage by flat amount
-- On-hit effects: Trigger POST_DAMAGE - after taking damage
+IMPORTANT DECAY GUIDANCE:
+Most temporary effects (buffs, debuffs, stacks) MUST decay to prevent infinite stacking.
+ONLY skip decay for truly permanent effects (rare).
+
+DECAY PATTERNS:
+1. Standard Decay (most common):
+   - Phase: POST_MOVE (end of turn)
+   - Action: remove_stacks with value: 1
+   - Effect: Removes 1 stack per turn
+   - Use for: Poison, burn, armor, most temporary buffs/debuffs
+
+2. Fast Decay:
+   - Phase: POST_MOVE
+   - Action: remove_stacks with value: 2 or more
+   - Effect: Removes multiple stacks per turn
+   - Use for: Very temporary effects that should fade quickly
+
+3. Per-Stack Decay:
+   - Phase: POST_MOVE
+   - Action: remove_stacks with per_stack: true
+   - Effect: Decay scales with stack count
+   - Use for: Effects that should decay faster when stronger
+
+COMMON EFFECT PATTERNS WITH EXAMPLES:
+
+1. Tick + Decay (most common for DoTs/HoTs):
+   Example for "poison" attribute:
+   Rule 1: {{phase: "pre_move", action: {{action_type: "damage", value: 3}}, per_stack: true}}
+   Rule 2: {{phase: "post_move", action: {{action_type: "remove_stacks", value: 1, attribute: "poison"}}}}
+   → Deals 3 damage per poison stack at start of turn, then removes 1 poison stack at end
+
+2. Damage Reduction + Decay:
+   Example for "armor" attribute:
+   Rule 1: {{phase: "pre_damage", action: {{action_type: "reduce_incoming_damage", value: 5}}, per_stack: true}}
+   Rule 2: {{phase: "post_move", action: {{action_type: "remove_stacks", value: 1, attribute: "armor"}}}}
+   → Reduces damage by 5 per armor stack when hit, decays 1 armor at end of turn
+
+3. Buff + Decay:
+   Example for "rage" attribute (positive):
+   Rule 1: Add bonus to attacks via attribute tracking (handled elsewhere)
+   Rule 2: {{phase: "post_move", action: {{action_type: "remove_stacks", value: 1, attribute: "rage"}}}}
+   → Rage stacks decay over time
+
+4. On-Hit Effect:
+   Example for "retaliation" attribute:
+   Rule: {{phase: "post_damage", action: {{action_type: "damage", value: 5}}, target: "enemy"}}
+   → Deals damage back to attacker when hit
+
+When to SKIP decay:
+- Truly permanent effects (very rare, like quest buffs)
+- Effects that decay through other means (e.g., consumed on use)
+- Passive abilities that don't stack
+
+DEFAULT RULE: If unsure, add decay. It's easier to remove decay than fix infinite stacking.
 
 CRITICAL: All rules must ONLY reference attributes from the "Available Attributes" list above.
 Use the exact attribute names provided. Do NOT invent new attributes.
