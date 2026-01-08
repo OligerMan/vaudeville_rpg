@@ -26,6 +26,7 @@ class EffectData:
     action_type: str  # ActionType value
     action_data: dict[str, Any]
     owner_participant_id: int  # Who owns this effect (for SELF/ENEMY resolution)
+    item_name: str | None = None  # Name of item that triggered this effect (if any)
 
 
 class EffectProcessor:
@@ -141,6 +142,7 @@ class EffectProcessor:
                 source_state=owner_state,
                 target_state=target_state,
                 action_data=effect.action_data,
+                item_name=effect.item_name,
             )
 
             # Execute the action

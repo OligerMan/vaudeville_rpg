@@ -14,6 +14,7 @@ class CombatState:
 
     player_id: int
     participant_id: int
+    display_name: str
     current_hp: int
     max_hp: int
     current_special_points: int
@@ -135,3 +136,4 @@ class ActionContext:
     source_state: CombatState
     target_state: CombatState
     action_data: dict[str, Any]
+    item_name: str | None = None  # Name of item that triggered this effect (if any)

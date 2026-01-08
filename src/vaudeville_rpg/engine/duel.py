@@ -429,6 +429,7 @@ class DuelEngine:
                 context.states[participant.id] = CombatState(
                     player_id=participant.player_id,
                     participant_id=participant.id,
+                    display_name=player.display_name,
                     current_hp=db_state.current_hp,
                     max_hp=player.max_hp,
                     current_special_points=db_state.current_special_points,
@@ -556,6 +557,7 @@ class DuelEngine:
                 context.states[participant.id] = CombatState(
                     player_id=participant.player_id,
                     participant_id=participant.id,
+                    display_name=player.display_name,
                     current_hp=db_state.current_hp,
                     max_hp=player.max_hp,
                     current_special_points=db_state.current_special_points,
@@ -694,6 +696,7 @@ class DuelEngine:
                     ]
                     participant_items[slot] = ItemData(
                         id=item.id,
+                        name=item.name,
                         slot=slot,
                         effects=effects,
                     )

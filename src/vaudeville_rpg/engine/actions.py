@@ -24,6 +24,27 @@ class ActionExecutor:
         """
         self.interrupt_handler = interrupt_handler
 
+    def _format_description(self, context: ActionContext, action: str, value: int, attribute: str | None = None) -> str:
+        """Format a combat description with source, target, and item names.
+
+        Args:
+            context: Action context with source/target states and item name
+            action: The action description (e.g., "dealt X damage", "healed X HP")
+            value: The value of the action
+            attribute: Optional attribute name for stack-based actions
+
+        Returns:
+            Formatted description like "Player dealt 8 damage to Enemy with Fist"
+        """
+        source = context.source_state.display_name
+        target = context.target_state.display_name
+        item_part = f" with {context.item_name}" if context.item_name else ""
+
+        if attribute:
+            return f"{source} {action} {value} {attribute} to {target}{item_part}"
+        else:
+            return f"{source} {action} {value} to {target}{item_part}"
+
     def execute(
         self,
         action_type: ActionType,
@@ -100,7 +121,7 @@ class ActionExecutor:
             target_participant_id=context.target_state.participant_id,
             action_type=ActionType.DAMAGE.value,
             value=actual,
-            description=f"Dealt {actual} damage",
+            description=self._format_description(context, "dealt", actual, "damage"),
         )
 
     def _execute_attack(
@@ -139,7 +160,7 @@ class ActionExecutor:
             target_participant_id=context.target_state.participant_id,
             action_type=ActionType.ATTACK.value,
             value=actual,
-            description=f"Attack dealt {actual} damage",
+            description=self._format_description(context, "dealt", actual, "damage"),
         )
 
     def _execute_heal(
@@ -156,7 +177,7 @@ class ActionExecutor:
             target_participant_id=context.target_state.participant_id,
             action_type=ActionType.HEAL.value,
             value=actual,
-            description=f"Healed {actual} HP",
+            description=self._format_description(context, "healed", actual, "HP"),
         )
 
     def _execute_add_stacks(
@@ -175,7 +196,7 @@ class ActionExecutor:
             target_participant_id=context.target_state.participant_id,
             action_type=ActionType.ADD_STACKS.value,
             value=actual,
-            description=f"Added {actual} {attribute} stacks",
+            description=self._format_description(context, "added", actual, attribute),
         )
 
     def _execute_remove_stacks(
@@ -193,7 +214,7 @@ class ActionExecutor:
             target_participant_id=context.target_state.participant_id,
             action_type=ActionType.REMOVE_STACKS.value,
             value=actual,
-            description=f"Removed {actual} {attribute} stacks",
+            description=self._format_description(context, "removed", actual, attribute),
         )
 
     def _execute_reduce_incoming_damage(

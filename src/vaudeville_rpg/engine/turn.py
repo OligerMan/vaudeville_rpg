@@ -26,6 +26,7 @@ class ItemData:
     """Data for an equipped item."""
 
     id: int
+    name: str
     slot: ItemSlot
     effects: list[EffectData]
 
@@ -413,6 +414,7 @@ class TurnResolver:
                 action_type=effect.action_type,
                 action_data=effect.action_data,
                 owner_participant_id=participant_id,
+                item_name=item.name,
             )
             effects.append(effect_with_owner)
 
@@ -455,6 +457,7 @@ class TurnResolver:
                 action_type=effect.action_type,
                 action_data=effect.action_data,
                 owner_participant_id=participant_id,
+                item_name=item.name,
             )
             effects.append(effect_with_owner)
 
