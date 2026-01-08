@@ -340,7 +340,7 @@ Respond with JSON:
             setting_description=setting_description,
             attributes=attrs_list,
         )
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=3000)
         data = _extract_json(response.content)
 
         # Convert to proper schema
@@ -437,7 +437,7 @@ Respond with JSON:
             setting_description=setting_description,
             attributes_list=attrs_list,
         )
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=3000)
         data = _extract_json(response.content)
 
         # Convert to proper schema
