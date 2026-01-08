@@ -252,10 +252,8 @@ class ItemParser:
 
         # Create action
         action = Action(
-            setting_id=setting_id,
             name=f"item_{item_id}_action_{priority}",
             action_type=action_type,
-            target=target,
             action_data=action_data,
         )
         self.session.add(action)
@@ -271,7 +269,6 @@ class ItemParser:
         phase = phase_map.get(item_slot, "pre_move")
 
         condition = Condition(
-            setting_id=setting_id,
             name=f"item_{item_id}_condition_{priority}",
             condition_type=ConditionType.PHASE,
             condition_data={"phase": phase},
