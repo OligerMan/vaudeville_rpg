@@ -6,7 +6,6 @@ import re
 from .client import LLMClient
 from .schemas import (
     EffectTemplate,
-    GeneratedEffectTemplates,
     GeneratedItemTypes,
     GeneratedSetting,
     GeneratedWorldRules,
@@ -270,17 +269,21 @@ CRITICAL: You must ONLY reference attributes that are explicitly listed as avail
 Available Attributes (you MUST only reference these):
 {attributes}
 
-Generate 6-10 item effect templates. Include:
-- 2-3 attack effects (damage + attribute application)
-- 2-3 defense effects (armor, damage reduction, self-buffs)
-- 2-3 misc effects (healing, utility, attribute manipulation)
+Requested Item Type: {slot_type}
+{existing_effects_section}
+Generate a SINGLE item effect template for the {slot_type} slot.
+
+Guidelines by slot type:
+- attack: damage-dealing effects, apply negative attributes to enemy
+- defense: damage reduction, armor, apply positive attributes to self
+- misc: healing, utility, attribute manipulation
 
 Each effect needs:
 - name: lowercase snake_case identifier
 - description: what it does
 - prefix: naming prefix (e.g., "Poisonous", "Holy")
 - suffix: optional naming suffix (e.g., "of Flames", "of Protection")
-- slot_type: attack, defense, or misc
+- slot_type: {slot_type}
 - actions: list of actions with rarity-scaled values
 
 IMPORTANT: ALL numeric values MUST be integers (whole numbers), NEVER floats.
@@ -304,29 +307,25 @@ CRITICAL: When using "add_stacks" or "remove_stacks" action_type, the "attribute
 Do NOT invent new attributes. Only use attributes from the Available Attributes list.
 ALL values in the "values" object MUST be integers like 10, 15, 20 - NOT floats like 10.5, 15.5, 20.5.
 
-Respond with JSON:
+Respond with JSON for a single template:
 {{
-    "templates": [
+    "name": "string",
+    "description": "string",
+    "prefix": "string",
+    "suffix": "string or null",
+    "slot_type": "{slot_type}",
+    "actions": [
         {{
-            "name": "string",
-            "description": "string",
-            "prefix": "string",
-            "suffix": "string or null",
-            "slot_type": "attack|defense|misc",
-            "actions": [
-                {{
-                    "action_type": "attack|damage|heal|add_stacks|remove_stacks",
-                    "target": "self|enemy",
-                    "attribute": "string or null",
-                    "values": {{
-                        "common": integer (whole number like 10, NOT 10.5),
-                        "uncommon": integer (whole number like 15, NOT 15.5),
-                        "rare": integer (whole number like 20, NOT 20.5),
-                        "epic": integer (whole number like 25, NOT 25.5),
-                        "legendary": integer (whole number like 30, NOT 30.5)
-                    }}
-                }}
-            ]
+            "action_type": "attack|damage|heal|add_stacks|remove_stacks",
+            "target": "self|enemy",
+            "attribute": "string or null",
+            "values": {{
+                "common": integer (whole number like 10, NOT 10.5),
+                "uncommon": integer (whole number like 15, NOT 15.5),
+                "rare": integer (whole number like 20, NOT 20.5),
+                "epic": integer (whole number like 25, NOT 25.5),
+                "legendary": integer (whole number like 30, NOT 30.5)
+            }}
         }}
     ]
 }}"""
@@ -334,32 +333,61 @@ Respond with JSON:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def generate(self, setting_description: str, attributes: list[str]) -> GeneratedEffectTemplates:
-        """Generate effect templates for a setting.
+    async def generate(
+        self,
+        setting_description: str,
+        attributes: list[str],
+        slot_type: str,
+        existing_effects: list[dict[str, str]] | None = None,
+    ) -> EffectTemplate:
+        """Generate a single effect template for a setting.
 
         Args:
             setting_description: Broad setting description
             attributes: List of attribute names available
+            slot_type: Type of slot (attack, defense, or misc)
+            existing_effects: List of dicts with 'name' and 'description' of existing effects
 
         Returns:
-            GeneratedEffectTemplates with effect definitions
+            EffectTemplate with effect definition
         """
+        import random
+
         # Format attributes list
         attrs_list = "\n".join(f"- {attr}" for attr in sorted(attributes))
+
+        # Build existing effects section with character limit
+        existing_effects_section = ""
+        if existing_effects:
+            effects_lines = []
+            effects_lines.append("\nExisting Effects (avoid repeating these exactly - be creative and unique):")
+
+            # Shuffle for random selection if we need to truncate
+            shuffled_effects = list(existing_effects)
+            random.shuffle(shuffled_effects)
+
+            for effect in shuffled_effects:
+                line = f"- {effect['name']}: {effect['description']}"
+                # Check if adding this line would exceed ~1500 char limit for the whole section
+                test_section = "\n".join(effects_lines + [line])
+                if len(test_section) > 1500:
+                    effects_lines.append("- ... (and more)")
+                    break
+                effects_lines.append(line)
+
+            existing_effects_section = "\n".join(effects_lines)
 
         prompt = self.GENERATION_PROMPT.format(
             setting_description=setting_description,
             attributes=attrs_list,
+            slot_type=slot_type,
+            existing_effects_section=existing_effects_section,
         )
         response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2500)
         data = _extract_json(response.content)
 
         # Convert to proper schema
-        templates = []
-        for t in data.get("templates", []):
-            templates.append(EffectTemplate.model_validate(t))
-
-        return GeneratedEffectTemplates(templates=templates)
+        return EffectTemplate.model_validate(data)
 
 
 class ItemTypeGenerator:

@@ -327,37 +327,61 @@ class SettingFactory:
         """Step 3: Generate effect templates."""
         step = PipelineStep(name="generate_effect_templates", success=False, message="")
 
-        for attempt in range(max_retries + 1):
-            try:
-                generated = await self.effects_gen.generate(
-                    setting_description=setting_description,
-                    attributes=list(known_attributes),
-                )
+        try:
+            templates = []
+            existing_effects = []
 
-                if validate:
-                    validator = EffectTemplateValidator(known_attributes)
-                    validation = validator.validate(generated)
-                    if not validation.valid:
-                        step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
-                        if retry and attempt < max_retries:
-                            await asyncio.sleep(self.settings.llm_retry_delay)
-                            continue
-                        step.message = f"Validation failed: {step.validation_errors}"
-                        return step
+            # Generate 2-3 templates for each slot type
+            slot_counts = {"attack": 3, "defense": 3, "misc": 2}
 
-                step.success = True
-                step.message = f"Generated {len(generated.templates)} effect templates"
-                step.data = generated
-                return step
+            for slot_type, count in slot_counts.items():
+                for i in range(count):
+                    for attempt in range(max_retries + 1):
+                        try:
+                            # Generate single template with context of existing effects
+                            template = await self.effects_gen.generate(
+                                setting_description=setting_description,
+                                attributes=list(known_attributes),
+                                slot_type=slot_type,
+                                existing_effects=existing_effects if existing_effects else None,
+                            )
 
-            except Exception as e:
-                step.message = f"Generation failed: {e!s}"
-                if attempt < max_retries:
-                    await asyncio.sleep(self.settings.llm_retry_delay)
-                    continue
-                return step
+                            if validate:
+                                # Validate single template by wrapping it
+                                validator = EffectTemplateValidator(known_attributes)
+                                wrapped = GeneratedEffectTemplates(templates=[template])
+                                validation = validator.validate(wrapped)
+                                if not validation.valid:
+                                    step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
+                                    if retry and attempt < max_retries:
+                                        await asyncio.sleep(self.settings.llm_retry_delay)
+                                        continue
+                                    step.message = f"Validation failed for {slot_type} template {i + 1}: {step.validation_errors}"
+                                    return step
 
-        return step
+                            # Add to collection
+                            templates.append(template)
+                            existing_effects.append({"name": template.name, "description": template.description})
+                            break  # Success, exit retry loop
+
+                        except Exception as e:
+                            if attempt < max_retries:
+                                await asyncio.sleep(self.settings.llm_retry_delay)
+                                continue
+                            step.message = f"Generation failed for {slot_type} template {i + 1}: {e!s}"
+                            return step
+
+            # Wrap templates in GeneratedEffectTemplates
+            generated = GeneratedEffectTemplates(templates=templates)
+
+            step.success = True
+            step.message = f"Generated {len(templates)} effect templates"
+            step.data = generated
+            return step
+
+        except Exception as e:
+            step.message = f"Generation failed: {e!s}"
+            return step
 
     async def _step_generate_item_types(
         self,

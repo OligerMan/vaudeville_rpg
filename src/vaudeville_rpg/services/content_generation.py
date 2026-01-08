@@ -95,10 +95,27 @@ class ContentGenerationService:
                 rules_created += await self._persist_world_rules(setting.id, world_rules)
 
             # Step 3: Generate effect templates
-            effect_templates = await self.effects_gen.generate(
-                setting_description=generated.broad_description,
-                attributes=attribute_names,
-            )
+            templates = []
+            existing_effects = []
+
+            # Generate 2-3 templates for each slot type
+            slot_counts = {"attack": 3, "defense": 3, "misc": 2}
+
+            for slot_type, count in slot_counts.items():
+                for i in range(count):
+                    template = await self.effects_gen.generate(
+                        setting_description=generated.broad_description,
+                        attributes=attribute_names,
+                        slot_type=slot_type,
+                        existing_effects=existing_effects if existing_effects else None,
+                    )
+                    templates.append(template)
+                    existing_effects.append({"name": template.name, "description": template.description})
+
+            # Wrap templates in GeneratedEffectTemplates
+            from ..llm.schemas import GeneratedEffectTemplates
+
+            effect_templates = GeneratedEffectTemplates(templates=templates)
 
             # Step 4: Generate item types
             item_types = await self.types_gen.generate(
