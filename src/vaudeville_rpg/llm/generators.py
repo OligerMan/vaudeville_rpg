@@ -195,12 +195,14 @@ class EffectTemplateGenerator:
 
     SYSTEM_PROMPT = """You are a game item designer for a turn-based RPG.
 Your task is to create item effect templates that fit the setting.
-Always respond with valid JSON matching the requested schema."""
+Always respond with valid JSON matching the requested schema.
+CRITICAL: You must ONLY reference attributes that are explicitly listed as available."""
 
     GENERATION_PROMPT = """Given this setting:
 {setting_description}
 
-Available attributes: {attributes}
+Available Attributes (you MUST only reference these):
+{attributes}
 
 Generate 6-10 item effect templates. Include:
 - 2-3 attack effects (damage + attribute application)
@@ -221,6 +223,9 @@ Rarity scaling (common → legendary should increase power):
 - Rare: ~2x
 - Epic: ~2.5x
 - Legendary: ~3x
+
+CRITICAL: When using "add_stacks" or "remove_stacks" action_type, the "attribute" field MUST be one of the attributes listed above.
+Do NOT invent new attributes. Only use attributes from the Available Attributes list.
 
 Respond with JSON:
 {{
@@ -262,9 +267,12 @@ Respond with JSON:
         Returns:
             GeneratedEffectTemplates with effect definitions
         """
+        # Format attributes list
+        attrs_list = "\n".join(f"- {attr}" for attr in sorted(attributes))
+
         prompt = self.GENERATION_PROMPT.format(
             setting_description=setting_description,
-            attributes=", ".join(attributes),
+            attributes=attrs_list,
         )
         response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
         data = _extract_json(response.content)
