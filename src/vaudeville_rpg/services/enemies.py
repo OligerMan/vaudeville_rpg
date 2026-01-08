@@ -3,9 +3,11 @@
 import random
 import time
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.models.enums import DungeonDifficulty
+from ..db.models.items import Item
 from ..db.models.players import Player
 
 # Enemy name templates
@@ -71,6 +73,14 @@ class EnemyGenerator:
         hp = base_hp + (stage - 1) * self._get_hp_scaling(difficulty)
         sp = base_sp + (stage - 1) * self._get_sp_scaling(difficulty)
 
+        # Find the default Fist item for this setting
+        fist_stmt = select(Item).where(
+            Item.setting_id == setting_id,
+            Item.name == "Fist",
+        )
+        fist_result = await self.session.execute(fist_stmt)
+        fist_item = fist_result.scalar_one_or_none()
+
         # Create bot player with unique negative telegram_user_id
         # Use negative timestamp + random to avoid unique constraint conflicts
         unique_bot_id = -(int(time.time() * 1000000) + random.randint(0, 999999))
@@ -83,6 +93,7 @@ class EnemyGenerator:
             max_special_points=sp,
             rating=1000,
             is_bot=True,
+            attack_item_id=fist_item.id if fist_item else None,
         )
         self.session.add(enemy)
         await self.session.flush()
