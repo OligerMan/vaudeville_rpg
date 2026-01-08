@@ -94,7 +94,6 @@ class WorldRulesParser:
         """Create a single world rule with conditions, actions, and effect."""
         # 1. Create phase condition
         phase_condition = Condition(
-            setting_id=setting_id,
             name=f"{rule.name}_phase",
             condition_type=ConditionType.PHASE,
             condition_data={"phase": rule.phase},
@@ -104,7 +103,6 @@ class WorldRulesParser:
 
         # 2. Create has_stacks condition
         stacks_condition = Condition(
-            setting_id=setting_id,
             name=f"{rule.name}_stacks",
             condition_type=ConditionType.HAS_STACKS,
             condition_data={
@@ -117,7 +115,6 @@ class WorldRulesParser:
 
         # 3. Create composite AND condition
         and_condition = Condition(
-            setting_id=setting_id,
             name=f"{rule.name}_condition",
             condition_type=ConditionType.AND,
             condition_data={"condition_ids": [phase_condition.id, stacks_condition.id]},
@@ -136,10 +133,8 @@ class WorldRulesParser:
             action_data["per_stack"] = True
 
         action = Action(
-            setting_id=setting_id,
             name=f"{rule.name}_action",
             action_type=action_type,
-            target=target,
             action_data=action_data,
         )
         self.session.add(action)
@@ -152,6 +147,7 @@ class WorldRulesParser:
             description=rule.description,
             condition_id=and_condition.id,
             action_id=action.id,
+            target=target,
             category=EffectCategory.WORLD_RULE,
         )
         self.session.add(effect)
