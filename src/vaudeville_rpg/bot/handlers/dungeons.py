@@ -152,9 +152,11 @@ def format_dungeon_state(dungeon_state: dict, duel_state: dict | None = None) ->
             combat = p.get("combat_state")
             if combat:
                 hp = combat["current_hp"]
+                max_hp = combat["max_hp"]
                 sp = combat["current_special_points"]
+                max_sp = combat["max_special_points"]
                 name = p.get("display_name", "Fighter")
-                lines.append(f"  {name}: {hp} HP | {sp} SP")
+                lines.append(f"  {name}: {hp}/{max_hp} HP | {sp}/{max_sp} SP")
 
     return "\n".join(lines)
 
