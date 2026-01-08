@@ -351,7 +351,7 @@ Respond with JSON:
             setting_description=setting_description,
             attributes=attrs_list,
         )
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=3000)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2500)
         data = _extract_json(response.content)
 
         # Convert to proper schema
@@ -450,7 +450,7 @@ Respond with JSON (ALL values must be integers, NOT floats):
             setting_description=setting_description,
             attributes_list=attrs_list,
         )
-        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=3000)
+        response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2500)
         data = _extract_json(response.content)
 
         # Convert to proper schema
