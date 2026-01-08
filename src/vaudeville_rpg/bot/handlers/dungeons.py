@@ -18,6 +18,7 @@ from ..utils import (
     validate_message_user,
 )
 from .common import is_setting_configured
+from .duels import format_turn_result
 
 router = Router(name="dungeons")
 
@@ -343,6 +344,7 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
 
         # For PvE, we need to also submit the bot's action
         # Get the duel to find the bot participant
+        turn_result = None
         duel = await duel_service.get_active_duel(duel_id)
         if duel:
             for p in duel.participants:
@@ -357,7 +359,10 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
                         DuelActionType.MISC,
                     ]
                     bot_action = random.choice(bot_actions)
-                    await duel_service.submit_action(duel_id, p.player_id, bot_action)
+                    bot_result = await duel_service.submit_action(duel_id, p.player_id, bot_action)
+                    # Capture turn result if both players submitted
+                    if bot_result.turn_result:
+                        turn_result = bot_result.turn_result
                     break
 
         await session.commit()
@@ -400,23 +405,37 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
 
                         comparison = format_reward_comparison(reward_item, current_item, slot_name)
 
+                        # Build message with turn result
+                        result_text = dungeon_result.message
+                        if turn_result:
+                            result_text += format_turn_result(turn_result)
+
                         await callback.message.edit_text(
-                            f"{dungeon_result.message}\n\n{comparison}",
+                            f"{result_text}\n\n{comparison}",
                             reply_markup=get_reward_keyboard(reward_item.id, player.id),
                         )
                     else:
+                        result_text = dungeon_result.message
+                        if turn_result:
+                            result_text += format_turn_result(turn_result)
                         await callback.message.edit_text(
-                            dungeon_result.message,
+                            result_text,
                             reply_markup=None,
                         )
                 else:
+                    result_text = dungeon_result.message
+                    if turn_result:
+                        result_text += format_turn_result(turn_result)
                     await callback.message.edit_text(
-                        dungeon_result.message,
+                        result_text,
                         reply_markup=None,
                     )
             elif dungeon_result.dungeon_failed:
+                result_text = dungeon_result.message
+                if turn_result:
+                    result_text += format_turn_result(turn_result)
                 await callback.message.edit_text(
-                    dungeon_result.message,
+                    result_text,
                     reply_markup=None,
                 )
             elif dungeon_result.stage_completed:
@@ -424,8 +443,11 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
                 dungeon_state = await dungeon_service.get_dungeon_state(dungeon_id)
                 if dungeon_state:
                     text = format_dungeon_state(dungeon_state)
+                    result_text = dungeon_result.message
+                    if turn_result:
+                        result_text += format_turn_result(turn_result)
                     await callback.message.edit_text(
-                        f"{dungeon_result.message}\n\n{text}\n\nChoose your action:",
+                        f"{result_text}\n\n{text}\n\nChoose your action:",
                         reply_markup=get_dungeon_action_keyboard(dungeon_result.duel_id, dungeon_id),
                     )
             await callback.answer()
@@ -434,6 +456,9 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
             dungeon_state = await dungeon_service.get_dungeon_state(dungeon_id)
             if dungeon_state:
                 text = format_dungeon_state(dungeon_state, duel_state)
+                # Add turn result if available
+                if turn_result:
+                    text += format_turn_result(turn_result)
                 await callback.message.edit_text(
                     f"{text}\n\nChoose your action:",
                     reply_markup=get_dungeon_action_keyboard(duel_id, dungeon_id),
