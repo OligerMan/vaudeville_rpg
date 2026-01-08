@@ -112,15 +112,31 @@ Description: {description}
 Is Positive: {is_positive}
 
 Generate rules that define how this attribute behaves in combat.
+
+COMBAT PHASES (when rules trigger):
+- pre_move: Start of turn, before any actions
+- post_move: End of turn, after all actions
+- pre_attack: Before attacking
+- post_attack: After attacking
+- pre_damage: Before receiving damage
+- post_damage: After receiving damage
+
+ACTION TYPES (what the rule does):
+- damage: Deal INTEGER damage to target (value: 5 means 5 HP damage)
+- heal: Heal INTEGER HP to target (value: 10 means heal 10 HP)
+- add_stacks: Add INTEGER stacks of an attribute (value: 2, attribute: "poison" means add 2 poison stacks)
+- remove_stacks: Remove INTEGER stacks of an attribute (value: 1, attribute: "poison" means remove 1 poison stack)
+- reduce_incoming_damage: Reduce incoming damage by INTEGER (value: 5 means reduce damage by 5, NOT a percentage)
+
+IMPORTANT: All "value" fields MUST be integers (whole numbers like 5, 10, 15), NEVER floats (like 0.5, 1.5, 2.3).
+
+Target is usually "self" (the player who has the stacks)
+
 Common patterns:
 - Tick effects: Trigger PRE_MOVE (start of turn) - damage, heal, etc.
 - Decay: Trigger POST_MOVE (end of turn) - remove 1 stack
-- Damage reduction: Trigger PRE_DAMAGE - reduce incoming damage
+- Damage reduction: Trigger PRE_DAMAGE - reduce incoming damage by flat amount
 - On-hit effects: Trigger POST_DAMAGE - after taking damage
-
-Available phases: pre_move, post_move, pre_attack, post_attack, pre_damage, post_damage
-Available action_types: damage, heal, add_stacks, remove_stacks, reduce_incoming_damage
-Target is usually "self" (the player who has the stacks)
 
 CRITICAL: All rules must ONLY reference attributes from the "Available Attributes" list above.
 Use the exact attribute names provided. Do NOT invent new attributes.
@@ -132,16 +148,16 @@ Respond with JSON:
         {{
             "name": "string - unique rule name like '{name}_tick'",
             "description": "string - what this rule does",
-            "phase": "string - when it triggers",
+            "phase": "string - one of the phases listed above",
             "requires_attribute": "{name}",
             "min_stacks": 1,
             "target": "self",
             "action": {{
-                "action_type": "string",
-                "value": number,
-                "attribute": "string or null (MUST be from Available Attributes list)"
+                "action_type": "string - one of the action types listed above",
+                "value": integer - MUST be a whole number like 5 or 10, NOT 0.5 or 1.5,
+                "attribute": "string or null (MUST be from Available Attributes list, required for add_stacks/remove_stacks)"
             }},
-            "per_stack": boolean
+            "per_stack": boolean - true if effect scales with stack count
         }}
     ]
 }}"""
