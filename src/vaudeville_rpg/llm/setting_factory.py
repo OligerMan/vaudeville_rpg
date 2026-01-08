@@ -1,5 +1,6 @@
 """Setting factory - orchestrates the complete content generation pipeline."""
 
+import asyncio
 from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -237,6 +238,7 @@ class SettingFactory:
                     if not validation.valid:
                         step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
                         if retry and attempt < max_retries:
+                            await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
                         step.message = f"Validation failed: {step.validation_errors}"
                         return step
@@ -249,6 +251,7 @@ class SettingFactory:
             except Exception as e:
                 step.message = f"Generation failed: {e!s}"
                 if attempt < max_retries:
+                    await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
                 return step
 
@@ -280,6 +283,7 @@ class SettingFactory:
                     if not validation.valid:
                         step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
                         if retry and attempt < max_retries:
+                            await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
                         step.message = f"Validation failed: {step.validation_errors}"
                         return step
@@ -292,6 +296,7 @@ class SettingFactory:
             except Exception as e:
                 step.message = f"Generation failed: {e!s}"
                 if attempt < max_retries:
+                    await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
                 return step
 
@@ -321,6 +326,7 @@ class SettingFactory:
                     if not validation.valid:
                         step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
                         if retry and attempt < max_retries:
+                            await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
                         step.message = f"Validation failed: {step.validation_errors}"
                         return step
@@ -333,6 +339,7 @@ class SettingFactory:
             except Exception as e:
                 step.message = f"Generation failed: {e!s}"
                 if attempt < max_retries:
+                    await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
                 return step
 
@@ -358,6 +365,7 @@ class SettingFactory:
                     if not validation.valid:
                         step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
                         if retry and attempt < max_retries:
+                            await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
                         step.message = f"Validation failed: {step.validation_errors}"
                         return step
@@ -371,6 +379,7 @@ class SettingFactory:
             except Exception as e:
                 step.message = f"Generation failed: {e!s}"
                 if attempt < max_retries:
+                    await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
                 return step
 
