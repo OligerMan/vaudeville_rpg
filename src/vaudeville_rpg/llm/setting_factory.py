@@ -197,7 +197,11 @@ class SettingFactory:
 
             # Step 4: Generate item types
             types_step = await self._step_generate_item_types(
-                generated_setting.broad_description, validate, retry_on_validation_fail, max_retries
+                generated_setting.broad_description,
+                list(attribute_names),
+                validate,
+                retry_on_validation_fail,
+                max_retries,
             )
             result.add_step(types_step)
             if not types_step.success:
@@ -358,6 +362,7 @@ class SettingFactory:
     async def _step_generate_item_types(
         self,
         setting_description: str,
+        attribute_names: list[str],
         validate: bool,
         retry: bool,
         max_retries: int,
@@ -367,7 +372,10 @@ class SettingFactory:
 
         for attempt in range(max_retries + 1):
             try:
-                generated = await self.types_gen.generate(setting_description=setting_description)
+                generated = await self.types_gen.generate(
+                    setting_description=setting_description,
+                    attribute_names=attribute_names,
+                )
 
                 if validate:
                     validator = ItemTypeValidator()

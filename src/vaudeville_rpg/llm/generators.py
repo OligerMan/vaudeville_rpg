@@ -282,10 +282,14 @@ class ItemTypeGenerator:
 
     SYSTEM_PROMPT = """You are a game item designer for a turn-based RPG.
 Your task is to create item types that fit the setting theme.
-Always respond with valid JSON matching the requested schema."""
+Always respond with valid JSON matching the requested schema.
+CRITICAL: Item names and descriptions should thematically align with the world's attributes."""
 
     GENERATION_PROMPT = """Given this setting:
 {setting_description}
+
+Available Attributes in this world (items should thematically align):
+{attributes_list}
 
 Generate item types for each slot:
 - 3-4 attack types (weapons)
@@ -304,6 +308,9 @@ Rarity scaling for base values:
 - Rare: 18-22
 - Epic: 25-30
 - Legendary: 35-40
+
+CRITICAL: Item names and descriptions should reference or complement the attributes listed above.
+Create items that make thematic sense with these attributes and the world they exist in.
 
 Respond with JSON:
 {{
@@ -336,16 +343,26 @@ Respond with JSON:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
-    async def generate(self, setting_description: str) -> GeneratedItemTypes:
+    async def generate(self, setting_description: str, attribute_names: list[str] | None = None) -> GeneratedItemTypes:
         """Generate item types for a setting.
 
         Args:
             setting_description: Broad setting description
+            attribute_names: List of attribute names for thematic alignment
 
         Returns:
             GeneratedItemTypes with item type definitions
         """
-        prompt = self.GENERATION_PROMPT.format(setting_description=setting_description)
+        # Format attributes list
+        if attribute_names:
+            attrs_list = "\n".join(f"- {attr}" for attr in sorted(attribute_names))
+        else:
+            attrs_list = "- (No attributes defined)"
+
+        prompt = self.GENERATION_PROMPT.format(
+            setting_description=setting_description,
+            attributes_list=attrs_list,
+        )
         response = await self.client.generate(prompt, system=self.SYSTEM_PROMPT, max_tokens=2048)
         data = _extract_json(response.content)
 
