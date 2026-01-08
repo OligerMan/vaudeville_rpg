@@ -304,9 +304,9 @@ class DuelEngine:
                     "is_ready": p.is_ready,
                     "combat_state": {
                         "current_hp": combat_states[p.player_id].current_hp,
-                        "max_hp": combat_states[p.player_id].max_hp,
+                        "max_hp": p.player.max_hp,
                         "current_special_points": combat_states[p.player_id].current_special_points,
-                        "max_special_points": combat_states[p.player_id].max_special_points,
+                        "max_special_points": p.player.max_special_points,
                         "attribute_stacks": combat_states[p.player_id].attribute_stacks,
                     }
                     if p.player_id in combat_states
