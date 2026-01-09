@@ -13,8 +13,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
-from ...db.models.effects import Effect
-from ...db.models.enums import AttributeCategory
+from ...db.models.effects import Action, Condition, Effect
+from ...db.models.enums import ActionType, AttributeCategory, ConditionType, EffectCategory
 from ...db.models.items import Item
 from ...db.models.players import Player
 from ...db.models.settings import AttributeDefinition, Setting
@@ -335,6 +335,109 @@ async def cmd_leaderboard(message: Message) -> None:
         await message.answer("\n".join(lines))
 
 
+def _format_phase(phase: str) -> str:
+    """Format phase name for display."""
+    phase_names = {
+        "pre_move": "before turn",
+        "post_move": "after turn",
+        "pre_attack": "before attack",
+        "post_attack": "after attack",
+        "pre_damage": "before damage",
+        "post_damage": "after damage",
+    }
+    return phase_names.get(phase, phase)
+
+
+def _format_action(action: Action, target: str) -> str:
+    """Format action for display."""
+    value = action.action_data.get("value", 0)
+    attribute = action.action_data.get("attribute", "")
+    per_stack = action.action_data.get("per_stack", False)
+
+    target_str = "self" if target == "self" else "enemy"
+    per_stack_str = " per stack" if per_stack else ""
+
+    if action.action_type == ActionType.DAMAGE:
+        return f"deals {value}{per_stack_str} damage to {target_str}"
+    elif action.action_type == ActionType.HEAL:
+        return f"heals {value}{per_stack_str} HP"
+    elif action.action_type == ActionType.ADD_STACKS:
+        return f"adds {value} {attribute} to {target_str}"
+    elif action.action_type == ActionType.REMOVE_STACKS:
+        return f"removes {value} {attribute}"
+    elif action.action_type == ActionType.REDUCE_INCOMING_DAMAGE:
+        return f"reduces damage by {value}{per_stack_str}"
+    else:
+        return f"{action.action_type.value}: {value}"
+
+
+async def _get_attribute_mechanics(
+    session, setting_id: int, conditions_cache: dict
+) -> dict[str, list[str]]:
+    """Get world rule mechanics grouped by attribute."""
+    # Load world rules with their actions
+    stmt = (
+        select(Effect)
+        .where(
+            Effect.setting_id == setting_id,
+            Effect.category == EffectCategory.WORLD_RULE,
+        )
+        .options(selectinload(Effect.action))
+    )
+    result = await session.execute(stmt)
+    world_rules = result.scalars().all()
+
+    # Group mechanics by attribute
+    attr_mechanics: dict[str, list[str]] = {}
+
+    for rule in world_rules:
+        # Get condition to find which attribute this rule is for
+        if rule.condition_id not in conditions_cache:
+            cond_stmt = select(Condition).where(Condition.id == rule.condition_id)
+            cond_result = await session.execute(cond_stmt)
+            conditions_cache[rule.condition_id] = cond_result.scalar_one_or_none()
+
+        condition = conditions_cache[rule.condition_id]
+        if not condition:
+            continue
+
+        # Find the attribute and phase from condition
+        attribute_name = None
+        phase = None
+
+        if condition.condition_type == ConditionType.AND:
+            # Composite condition - look up sub-conditions
+            sub_ids = condition.condition_data.get("condition_ids", [])
+            for sub_id in sub_ids:
+                if sub_id not in conditions_cache:
+                    sub_stmt = select(Condition).where(Condition.id == sub_id)
+                    sub_result = await session.execute(sub_stmt)
+                    conditions_cache[sub_id] = sub_result.scalar_one_or_none()
+
+                sub_cond = conditions_cache[sub_id]
+                if not sub_cond:
+                    continue
+
+                if sub_cond.condition_type == ConditionType.HAS_STACKS:
+                    attribute_name = sub_cond.condition_data.get("attribute")
+                elif sub_cond.condition_type == ConditionType.PHASE:
+                    phase = sub_cond.condition_data.get("phase")
+
+        if not attribute_name or not phase:
+            continue
+
+        # Format the mechanic
+        action_str = _format_action(rule.action, rule.target.value)
+        phase_str = _format_phase(phase)
+        mechanic = f"{action_str} {phase_str}"
+
+        if attribute_name not in attr_mechanics:
+            attr_mechanics[attribute_name] = []
+        attr_mechanics[attribute_name].append(mechanic)
+
+    return attr_mechanics
+
+
 @router.message(Command("setting"))
 @safe_handler
 @log_command("/setting")
@@ -363,6 +466,10 @@ async def cmd_setting(message: Message) -> None:
         result = await session.execute(stmt)
         attributes = result.scalars().all()
 
+        # Get world rule mechanics grouped by attribute
+        conditions_cache: dict[int, Condition | None] = {}
+        attr_mechanics = await _get_attribute_mechanics(session, setting.id, conditions_cache)
+
         # Format setting info
         lines = [
             f"<b>{setting.name}</b>",
@@ -382,18 +489,17 @@ async def cmd_setting(message: Message) -> None:
         lines.append(f"  Regenerates {setting.special_points_regen} per turn")
         lines.append("")
 
-        # Generatable attributes
+        # Generatable attributes with mechanics
         gen_attrs = [a for a in attributes if a.category == AttributeCategory.GENERATABLE]
         if gen_attrs:
             lines.append("<b>Attributes:</b>")
             for attr in gen_attrs:
                 max_info = f" (max: {attr.max_stacks})" if attr.max_stacks else ""
                 lines.append(f"  <b>{attr.display_name}</b>{max_info}")
-                if attr.description:
-                    # Truncate attribute description if too long
-                    attr_desc = attr.description
-                    if len(attr_desc) > 100:
-                        attr_desc = attr_desc[:97] + "..."
-                    lines.append(f"    <i>{attr_desc}</i>")
+
+                # Show mechanics from world rules
+                mechanics = attr_mechanics.get(attr.name, [])
+                if mechanics:
+                    lines.append(f"    {'; '.join(mechanics)}")
 
         await message.answer("\n".join(lines))
