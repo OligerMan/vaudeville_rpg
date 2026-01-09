@@ -105,7 +105,7 @@ class SettingFactory:
         user_prompt: str,
         validate: bool = True,
         retry_on_validation_fail: bool = True,
-        max_retries: int = 2,
+        max_retries: int = 5,
     ) -> PipelineResult:
         """Create a complete setting from user prompt.
 

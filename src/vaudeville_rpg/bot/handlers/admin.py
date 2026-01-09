@@ -176,7 +176,7 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
                 user_prompt=description,
                 validate=True,
                 retry_on_validation_fail=True,
-                max_retries=2,
+                max_retries=5,
             )
 
             if result.success:
@@ -277,7 +277,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
                 user_prompt=description,
                 validate=True,
                 retry_on_validation_fail=True,
-                max_retries=2,
+                max_retries=5,
             )
 
             if result.success:
