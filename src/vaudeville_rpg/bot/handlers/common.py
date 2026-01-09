@@ -10,13 +10,15 @@ from aiogram.filters.chat_member_updated import (
 )
 from aiogram.types import ChatMemberUpdated, Message
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
+from ...db.models.effects import Effect
 from ...db.models.items import Item
 from ...db.models.players import Player
 from ...db.models.settings import Setting
 from ...services.players import PlayerService
-from ..utils import log_command, safe_handler, validate_message_user
+from ..utils import format_item_mechanics, log_command, safe_handler, validate_message_user
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +223,38 @@ async def cmd_profile(message: Message) -> None:
         result = await session.execute(rank_stmt)
         rank = result.scalar() + 1
 
+        # Load equipped items with effects for mechanics display
+        attack_item = None
+        defense_item = None
+        misc_item = None
+
+        if player.attack_item_id:
+            stmt = (
+                select(Item)
+                .where(Item.id == player.attack_item_id)
+                .options(selectinload(Item.effects).selectinload(Effect.action))
+            )
+            result = await session.execute(stmt)
+            attack_item = result.scalar_one_or_none()
+
+        if player.defense_item_id:
+            stmt = (
+                select(Item)
+                .where(Item.id == player.defense_item_id)
+                .options(selectinload(Item.effects).selectinload(Effect.action))
+            )
+            result = await session.execute(stmt)
+            defense_item = result.scalar_one_or_none()
+
+        if player.misc_item_id:
+            stmt = (
+                select(Item)
+                .where(Item.id == player.misc_item_id)
+                .options(selectinload(Item.effects).selectinload(Effect.action))
+            )
+            result = await session.execute(stmt)
+            misc_item = result.scalar_one_or_none()
+
         # Format profile
         lines = [
             f"<b>{player.display_name}</b>",
@@ -230,10 +264,29 @@ async def cmd_profile(message: Message) -> None:
             f"SP: {player.max_special_points}",
             "",
             "<b>Equipped Items:</b>",
-            f"  Attack: {player.attack_item.name if player.attack_item else 'None'}",
-            f"  Defense: {player.defense_item.name if player.defense_item else 'None'}",
-            f"  Misc: {player.misc_item.name if player.misc_item else 'None'}",
         ]
+
+        # Format each item with mechanics
+        if attack_item:
+            mechanics = format_item_mechanics(attack_item)
+            lines.append(f"  Attack: {attack_item.name}")
+            lines.append(f"    <i>{mechanics}</i>")
+        else:
+            lines.append("  Attack: None")
+
+        if defense_item:
+            mechanics = format_item_mechanics(defense_item)
+            lines.append(f"  Defense: {defense_item.name}")
+            lines.append(f"    <i>{mechanics}</i>")
+        else:
+            lines.append("  Defense: None")
+
+        if misc_item:
+            mechanics = format_item_mechanics(misc_item)
+            lines.append(f"  Misc: {misc_item.name}")
+            lines.append(f"    <i>{mechanics}</i>")
+        else:
+            lines.append("  Misc: None")
 
         await message.answer("\n".join(lines))
 

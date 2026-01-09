@@ -1,10 +1,13 @@
 """Tests for dungeon rewards and default items."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from vaudeville_rpg.bot.utils import format_item_mechanics
 from vaudeville_rpg.db.models.dungeons import Dungeon
-from vaudeville_rpg.db.models.enums import DungeonDifficulty, DungeonStatus, ItemSlot
+from vaudeville_rpg.db.models.enums import ActionType, DungeonDifficulty, DungeonStatus, ItemSlot, TargetType
 from vaudeville_rpg.db.models.items import Item
 from vaudeville_rpg.db.models.players import Player
 from vaudeville_rpg.db.models.settings import Setting
@@ -281,3 +284,137 @@ class TestDungeonResultRewardField:
         result = DungeonResult(success=True, message="Test")
 
         assert result.reward_item_id is None
+
+
+def _create_mock_effect(action_type: ActionType, value: int, target: TargetType, attribute: str | None = None) -> MagicMock:
+    """Create a mock effect with the given action type, value, and target."""
+    effect = MagicMock()
+    effect.target = target
+    effect.action = MagicMock()
+    effect.action.action_type = action_type
+    effect.action.action_data = {"value": value}
+    if attribute:
+        effect.action.action_data["attribute"] = attribute
+    return effect
+
+
+def _create_mock_item_with_effects(effects: list[MagicMock]) -> MagicMock:
+    """Create a mock item with the given effects."""
+    item = MagicMock()
+    item.effects = effects
+    return item
+
+
+class TestFormatItemMechanics:
+    """Tests for format_item_mechanics function."""
+
+    def test_no_effects_returns_no_special_effects(self) -> None:
+        """Item with no effects should return 'No special effects'."""
+        item = _create_mock_item_with_effects([])
+        result = format_item_mechanics(item)
+        assert result == "No special effects"
+
+    def test_attack_action_formats_correctly(self) -> None:
+        """Attack action should format as 'Deals X damage to target'."""
+        effect = _create_mock_effect(ActionType.ATTACK, 15, TargetType.ENEMY)
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Deals 15 damage to enemy"
+
+    def test_damage_action_formats_correctly(self) -> None:
+        """Damage action should format as 'Deals X damage to target'."""
+        effect = _create_mock_effect(ActionType.DAMAGE, 10, TargetType.ENEMY)
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Deals 10 damage to enemy"
+
+    def test_heal_action_formats_correctly(self) -> None:
+        """Heal action should format as 'Heals X HP'."""
+        effect = _create_mock_effect(ActionType.HEAL, 20, TargetType.SELF)
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Heals 20 HP"
+
+    def test_add_stacks_action_formats_correctly(self) -> None:
+        """Add stacks action should format with attribute name."""
+        effect = _create_mock_effect(ActionType.ADD_STACKS, 3, TargetType.ENEMY, "poison")
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Adds 3 Poison to enemy"
+
+    def test_add_stacks_to_self_formats_correctly(self) -> None:
+        """Add stacks to self should show 'self' as target."""
+        effect = _create_mock_effect(ActionType.ADD_STACKS, 5, TargetType.SELF, "armor")
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Adds 5 Armor to self"
+
+    def test_remove_stacks_action_formats_correctly(self) -> None:
+        """Remove stacks action should format with attribute name."""
+        effect = _create_mock_effect(ActionType.REMOVE_STACKS, 2, TargetType.ENEMY, "armor")
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Removes 2 Armor from enemy"
+
+    def test_reduce_incoming_damage_formats_correctly(self) -> None:
+        """Reduce incoming damage action should format correctly."""
+        effect = _create_mock_effect(ActionType.REDUCE_INCOMING_DAMAGE, 5, TargetType.SELF)
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Reduces incoming damage by 5"
+
+    def test_spend_action_formats_correctly(self) -> None:
+        """Spend action should format as 'Costs X SP'."""
+        effect = _create_mock_effect(ActionType.SPEND, 10, TargetType.SELF)
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Costs 10 SP"
+
+    def test_multiple_effects_joined_with_comma(self) -> None:
+        """Multiple effects should be joined with comma."""
+        effects = [
+            _create_mock_effect(ActionType.ATTACK, 15, TargetType.ENEMY),
+            _create_mock_effect(ActionType.ADD_STACKS, 3, TargetType.ENEMY, "poison"),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert result == "Deals 15 damage to enemy, Adds 3 Poison to enemy"
+
+    def test_underscore_in_attribute_converted_to_space(self) -> None:
+        """Underscores in attribute names should be converted to spaces."""
+        effect = _create_mock_effect(ActionType.ADD_STACKS, 2, TargetType.SELF, "holy_defense")
+        item = _create_mock_item_with_effects([effect])
+        result = format_item_mechanics(item)
+        assert result == "Adds 2 Holy Defense to self"
+
+    def test_duplicate_damage_effects_are_consolidated(self) -> None:
+        """Multiple damage effects to same target should be summed."""
+        effects = [
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.ADD_STACKS, 1, TargetType.ENEMY, "desert_dryness"),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert result == "Deals 20 damage to enemy, Adds 1 Desert Dryness to enemy"
+
+    def test_attack_and_damage_types_consolidated(self) -> None:
+        """ATTACK and DAMAGE action types should be treated as same for consolidation."""
+        effects = [
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.DAMAGE, 5, TargetType.ENEMY),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert result == "Deals 15 damage to enemy"
+
+    def test_same_stacks_different_targets_not_consolidated(self) -> None:
+        """Stacks to different targets should not be consolidated."""
+        effects = [
+            _create_mock_effect(ActionType.ADD_STACKS, 3, TargetType.ENEMY, "poison"),
+            _create_mock_effect(ActionType.ADD_STACKS, 2, TargetType.SELF, "poison"),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert "Adds 3 Poison to enemy" in result
+        assert "Adds 2 Poison to self" in result

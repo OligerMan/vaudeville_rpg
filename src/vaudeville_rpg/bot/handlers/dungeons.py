@@ -4,13 +4,16 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
+from ...db.models.effects import Effect
 from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
 from ...db.models.items import Item
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
 from ..utils import (
+    format_item_mechanics,
     log_callback,
     log_command,
     safe_handler,
@@ -118,17 +121,22 @@ def format_reward_comparison(reward_item: Item, current_item: Item | None, slot_
     """Format reward item comparison with current equipped item."""
     rarity = RARITY_NAMES.get(reward_item.rarity, "Unknown")
 
+    # Get mechanics description for reward item
+    reward_mechanics = format_item_mechanics(reward_item)
+
     lines = [
         f"<b>Reward: {reward_item.name}</b>",
         f"Rarity: {rarity}",
         f"Slot: {slot_name}",
-        f"<i>{reward_item.description}</i>",
+        f"Effects: {reward_mechanics}",
         "",
     ]
 
     if current_item:
         current_rarity = RARITY_NAMES.get(current_item.rarity, "Unknown")
+        current_mechanics = format_item_mechanics(current_item)
         lines.append(f"<b>Current {slot_name}:</b> {current_item.name} ({current_rarity})")
+        lines.append(f"Effects: {current_mechanics}")
     else:
         lines.append(f"<b>Current {slot_name}:</b> None")
 
@@ -394,22 +402,37 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
             if dungeon_result.dungeon_completed:
                 # Check if there's a reward
                 if dungeon_result.reward_item_id:
-                    # Get reward item details
-                    reward_stmt = select(Item).where(Item.id == dungeon_result.reward_item_id)
+                    # Get reward item details with effects and actions loaded
+                    reward_stmt = (
+                        select(Item)
+                        .where(Item.id == dungeon_result.reward_item_id)
+                        .options(selectinload(Item.effects).selectinload(Effect.action))
+                    )
                     reward_result = await session.execute(reward_stmt)
                     reward_item = reward_result.scalar_one_or_none()
 
                     if reward_item:
-                        # Get current item in the same slot for comparison
+                        # Get current item in the same slot for comparison (with effects loaded)
                         current_item = None
+                        current_item_id = None
                         slot_name = reward_item.slot.value.title()
 
                         if reward_item.slot == ItemSlot.ATTACK:
-                            current_item = player.attack_item
+                            current_item_id = player.attack_item_id
                         elif reward_item.slot == ItemSlot.DEFENSE:
-                            current_item = player.defense_item
+                            current_item_id = player.defense_item_id
                         elif reward_item.slot == ItemSlot.MISC:
-                            current_item = player.misc_item
+                            current_item_id = player.misc_item_id
+
+                        if current_item_id:
+                            # Load current item with effects and actions
+                            current_stmt = (
+                                select(Item)
+                                .where(Item.id == current_item_id)
+                                .options(selectinload(Item.effects).selectinload(Effect.action))
+                            )
+                            current_result = await session.execute(current_stmt)
+                            current_item = current_result.scalar_one_or_none()
 
                         comparison = format_reward_comparison(reward_item, current_item, slot_name)
 
