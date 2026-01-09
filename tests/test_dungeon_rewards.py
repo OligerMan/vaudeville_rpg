@@ -386,3 +386,35 @@ class TestFormatItemMechanics:
         item = _create_mock_item_with_effects([effect])
         result = format_item_mechanics(item)
         assert result == "Adds 2 Holy Defense to self"
+
+    def test_duplicate_damage_effects_are_consolidated(self) -> None:
+        """Multiple damage effects to same target should be summed."""
+        effects = [
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.ADD_STACKS, 1, TargetType.ENEMY, "desert_dryness"),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert result == "Deals 20 damage to enemy, Adds 1 Desert Dryness to enemy"
+
+    def test_attack_and_damage_types_consolidated(self) -> None:
+        """ATTACK and DAMAGE action types should be treated as same for consolidation."""
+        effects = [
+            _create_mock_effect(ActionType.ATTACK, 10, TargetType.ENEMY),
+            _create_mock_effect(ActionType.DAMAGE, 5, TargetType.ENEMY),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert result == "Deals 15 damage to enemy"
+
+    def test_same_stacks_different_targets_not_consolidated(self) -> None:
+        """Stacks to different targets should not be consolidated."""
+        effects = [
+            _create_mock_effect(ActionType.ADD_STACKS, 3, TargetType.ENEMY, "poison"),
+            _create_mock_effect(ActionType.ADD_STACKS, 2, TargetType.SELF, "poison"),
+        ]
+        item = _create_mock_item_with_effects(effects)
+        result = format_item_mechanics(item)
+        assert "Adds 3 Poison to enemy" in result
+        assert "Adds 2 Poison to self" in result
