@@ -14,9 +14,10 @@ from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
 from ...db.models.effects import Effect
+from ...db.models.enums import AttributeCategory
 from ...db.models.items import Item
 from ...db.models.players import Player
-from ...db.models.settings import Setting
+from ...db.models.settings import AttributeDefinition, Setting
 from ...services.players import PlayerService
 from ..utils import format_item_mechanics, log_command, safe_handler, validate_message_user
 
@@ -155,7 +156,8 @@ async def cmd_help(message: Message) -> None:
         "<b>Getting Started</b>\n"
         "/start - Welcome message and game status\n"
         "/help - Show this help message\n"
-        "/profile - View your stats and equipped items\n\n"
+        "/profile - View your stats and equipped items\n"
+        "/setting - View game world info and attributes\n\n"
     )
 
     if not is_configured:
@@ -329,5 +331,69 @@ async def cmd_leaderboard(message: Message) -> None:
                 medal = " "
 
             lines.append(f"{i}.{medal} <b>{player.display_name}</b> - {player.rating}")
+
+        await message.answer("\n".join(lines))
+
+
+@router.message(Command("setting"))
+@safe_handler
+@log_command("/setting")
+async def cmd_setting(message: Message) -> None:
+    """Handle /setting command - show current game world info."""
+    async with async_session_factory() as session:
+        # Check if setting is configured
+        is_configured, setting = await is_setting_configured(message.chat.id)
+
+        if not is_configured or not setting:
+            await message.answer(
+                "<b>Game Not Set Up</b>\n\n"
+                "This chat doesn't have a game world yet.\n"
+                "An admin needs to run:\n"
+                "<code>/generate_setting &lt;description&gt;</code>\n\n"
+                "Example: <code>/generate_setting A world of knights and dragons</code>"
+            )
+            return
+
+        # Load attributes for this setting
+        stmt = (
+            select(AttributeDefinition)
+            .where(AttributeDefinition.setting_id == setting.id)
+            .order_by(AttributeDefinition.category, AttributeDefinition.name)
+        )
+        result = await session.execute(stmt)
+        attributes = result.scalars().all()
+
+        # Format setting info
+        lines = [
+            f"<b>{setting.name}</b>",
+            "",
+        ]
+
+        if setting.description:
+            # Truncate description if too long
+            desc = setting.description
+            if len(desc) > 300:
+                desc = desc[:297] + "..."
+            lines.append(f"<i>{desc}</i>")
+            lines.append("")
+
+        # Special points info
+        lines.append(f"<b>Special Points:</b> {setting.special_points_name}")
+        lines.append(f"  Regenerates {setting.special_points_regen} per turn")
+        lines.append("")
+
+        # Generatable attributes
+        gen_attrs = [a for a in attributes if a.category == AttributeCategory.GENERATABLE]
+        if gen_attrs:
+            lines.append("<b>Attributes:</b>")
+            for attr in gen_attrs:
+                max_info = f" (max: {attr.max_stacks})" if attr.max_stacks else ""
+                lines.append(f"  <b>{attr.display_name}</b>{max_info}")
+                if attr.description:
+                    # Truncate attribute description if too long
+                    attr_desc = attr.description
+                    if len(attr_desc) > 100:
+                        attr_desc = attr_desc[:97] + "..."
+                    lines.append(f"    <i>{attr_desc}</i>")
 
         await message.answer("\n".join(lines))
