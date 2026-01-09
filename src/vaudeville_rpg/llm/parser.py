@@ -1,5 +1,6 @@
 """Parsers for converting structured data to database models."""
 
+import time
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,9 +93,12 @@ class WorldRulesParser:
 
     async def _create_rule(self, setting_id: int, rule: WorldRuleDefinition) -> int:
         """Create a single world rule with conditions, actions, and effect."""
+        # Use timestamp suffix to ensure unique names even on retry
+        unique_suffix = int(time.time() * 1000000)
+
         # 1. Create phase condition
         phase_condition = Condition(
-            name=f"{rule.name}_phase",
+            name=f"{rule.name}_phase_{unique_suffix}",
             condition_type=ConditionType.PHASE,
             condition_data={"phase": rule.phase},
         )
@@ -103,7 +107,7 @@ class WorldRulesParser:
 
         # 2. Create has_stacks condition
         stacks_condition = Condition(
-            name=f"{rule.name}_stacks",
+            name=f"{rule.name}_stacks_{unique_suffix}",
             condition_type=ConditionType.HAS_STACKS,
             condition_data={
                 "attribute": rule.requires_attribute,
@@ -115,7 +119,7 @@ class WorldRulesParser:
 
         # 3. Create composite AND condition
         and_condition = Condition(
-            name=f"{rule.name}_condition",
+            name=f"{rule.name}_condition_{unique_suffix}",
             condition_type=ConditionType.AND,
             condition_data={"condition_ids": [phase_condition.id, stacks_condition.id]},
         )
@@ -133,7 +137,7 @@ class WorldRulesParser:
             action_data["per_stack"] = True
 
         action = Action(
-            name=f"{rule.name}_action",
+            name=f"{rule.name}_action_{unique_suffix}",
             action_type=action_type,
             action_data=action_data,
         )
@@ -243,6 +247,9 @@ class ItemParser:
         action_def: dict,
     ) -> None:
         """Create an effect linked to an item."""
+        # Use timestamp suffix to ensure unique names even on retry
+        unique_suffix = int(time.time() * 1000000)
+
         action_type = self.ACTION_TYPE_MAP.get(action_def.get("action_type", "damage"), ActionType.DAMAGE)
         target = self.TARGET_MAP.get(action_def.get("target", "enemy"), TargetType.ENEMY)
 
@@ -252,7 +259,7 @@ class ItemParser:
 
         # Create action
         action = Action(
-            name=f"item_{item_id}_action_{priority}",
+            name=f"item_{item_id}_action_{priority}_{unique_suffix}",
             action_type=action_type,
             action_data=action_data,
         )
@@ -269,7 +276,7 @@ class ItemParser:
         phase = phase_map.get(item_slot, "pre_move")
 
         condition = Condition(
-            name=f"item_{item_id}_condition_{priority}",
+            name=f"item_{item_id}_condition_{priority}_{unique_suffix}",
             condition_type=ConditionType.PHASE,
             condition_data={"phase": phase},
         )
@@ -279,7 +286,7 @@ class ItemParser:
         # Create effect with item_id set
         effect = Effect(
             setting_id=setting_id,
-            name=f"item_{item_id}_effect_{priority}",
+            name=f"item_{item_id}_effect_{priority}_{unique_suffix}",
             description=f"{action_def.get('action_type', 'effect')}",
             condition_id=condition.id,
             action_id=action.id,
