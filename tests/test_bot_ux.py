@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from vaudeville_rpg.db.models import (
     Action,
     ActionType,
+    AttributeCategory,
+    AttributeDefinition,
     Condition,
     ConditionPhase,
     ConditionType,
@@ -335,3 +337,166 @@ class TestStartMessageContent:
         assert "/challenge" in configured_message
         assert "/dungeon" in configured_message
         assert "/profile" in configured_message
+
+
+async def create_setting_with_attributes(
+    session: AsyncSession,
+    chat_id: int,
+) -> Setting:
+    """Create a setting with attributes for testing."""
+    setting = Setting(
+        telegram_chat_id=chat_id,
+        name="Dune World",
+        description="A desert realm where spice flows and sandworms rule.",
+        special_points_name="Spice Melange",
+        special_points_regen=1,
+        max_generatable_attributes=3,
+    )
+    session.add(setting)
+    await session.flush()
+
+    # Create attributes
+    attributes_data = [
+        {
+            "name": "spice_vision",
+            "display_name": "Spice Vision",
+            "description": "Prescient sight granted by spice consumption",
+            "max_stacks": 5,
+        },
+        {
+            "name": "desert_hardened",
+            "display_name": "Desert Hardened",
+            "description": "Toughness from surviving the harsh desert",
+            "max_stacks": 10,
+        },
+        {
+            "name": "sandworm_call",
+            "display_name": "Sandworm Call",
+            "description": "Ability to summon the great makers",
+            "max_stacks": 3,
+        },
+    ]
+
+    for attr_data in attributes_data:
+        attr = AttributeDefinition(
+            setting_id=setting.id,
+            name=attr_data["name"],
+            display_name=attr_data["display_name"],
+            description=attr_data["description"],
+            category=AttributeCategory.GENERATABLE,
+            max_stacks=attr_data["max_stacks"],
+            default_stacks=0,
+        )
+        session.add(attr)
+
+    await session.flush()
+
+    # Create an item so the setting is considered configured
+    item = Item(
+        setting_id=setting.id,
+        name="Crysknife",
+        description="A sacred blade made from sandworm teeth",
+        slot=ItemSlot.ATTACK,
+        rarity=1,
+    )
+    session.add(item)
+    await session.flush()
+
+    return setting
+
+
+class TestSettingCommandAttributeDisplay:
+    """Tests for /setting command attribute display."""
+
+    async def test_setting_with_attributes_are_persisted(
+        self,
+        db_session: AsyncSession,
+    ):
+        """Test that attributes are properly persisted for a setting."""
+        from sqlalchemy import select
+
+        chat_id = 555555555
+        setting = await create_setting_with_attributes(db_session, chat_id)
+        await db_session.commit()
+
+        # Query attributes
+        stmt = (
+            select(AttributeDefinition)
+            .where(AttributeDefinition.setting_id == setting.id)
+            .order_by(AttributeDefinition.name)
+        )
+        result = await db_session.execute(stmt)
+        attributes = list(result.scalars().all())
+
+        assert len(attributes) == 3, "Setting should have 3 attributes"
+        attr_names = [a.display_name for a in attributes]
+        assert "Spice Vision" in attr_names
+        assert "Desert Hardened" in attr_names
+        assert "Sandworm Call" in attr_names
+
+    async def test_setting_attributes_have_descriptions(
+        self,
+        db_session: AsyncSession,
+    ):
+        """Test that attributes have descriptions."""
+        from sqlalchemy import select
+
+        chat_id = 666666666
+        setting = await create_setting_with_attributes(db_session, chat_id)
+        await db_session.commit()
+
+        # Query attributes
+        stmt = select(AttributeDefinition).where(
+            AttributeDefinition.setting_id == setting.id
+        )
+        result = await db_session.execute(stmt)
+        attributes = list(result.scalars().all())
+
+        for attr in attributes:
+            assert attr.description is not None, f"Attribute {attr.name} should have description"
+            assert len(attr.description) > 10, f"Attribute {attr.name} description should be meaningful"
+
+    async def test_setting_attributes_have_max_stacks(
+        self,
+        db_session: AsyncSession,
+    ):
+        """Test that generatable attributes have max stacks set."""
+        from sqlalchemy import select
+
+        chat_id = 777777777
+        setting = await create_setting_with_attributes(db_session, chat_id)
+        await db_session.commit()
+
+        # Query attributes
+        stmt = select(AttributeDefinition).where(
+            AttributeDefinition.setting_id == setting.id
+        )
+        result = await db_session.execute(stmt)
+        attributes = list(result.scalars().all())
+
+        for attr in attributes:
+            assert attr.max_stacks is not None, f"Attribute {attr.name} should have max_stacks"
+            assert attr.max_stacks > 0, f"Attribute {attr.name} max_stacks should be positive"
+
+    async def test_only_generatable_attributes_shown(
+        self,
+        db_session: AsyncSession,
+    ):
+        """Test that only GENERATABLE category attributes are returned."""
+        from sqlalchemy import select
+
+        chat_id = 888888888
+        setting = await create_setting_with_attributes(db_session, chat_id)
+        await db_session.commit()
+
+        # Query only generatable attributes (as /setting command does)
+        stmt = select(AttributeDefinition).where(
+            AttributeDefinition.setting_id == setting.id,
+            AttributeDefinition.category == AttributeCategory.GENERATABLE,
+        )
+        result = await db_session.execute(stmt)
+        attributes = list(result.scalars().all())
+
+        assert len(attributes) == 3, "Should have 3 generatable attributes"
+        for attr in attributes:
+            assert attr.category == AttributeCategory.GENERATABLE

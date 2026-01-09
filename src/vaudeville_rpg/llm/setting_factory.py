@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings, get_settings
-from ..db.models.settings import Setting
+from ..db.models.enums import AttributeCategory
+from ..db.models.settings import AttributeDefinition, Setting
 from .client import LLMClient, get_llm_client
 from .factory import ItemFactory, Rarity
 from .generators import (
@@ -151,6 +152,20 @@ class SettingFactory:
             self.session.add(db_setting)
             await self.session.flush()
             result.setting = db_setting
+
+            # Persist attributes to database
+            for attr in generated_setting.attributes:
+                attr_def = AttributeDefinition(
+                    setting_id=db_setting.id,
+                    name=attr.name,
+                    display_name=attr.display_name,
+                    description=attr.description,
+                    category=AttributeCategory.GENERATABLE,
+                    max_stacks=10,  # Default max stacks
+                    default_stacks=0,
+                )
+                self.session.add(attr_def)
+            await self.session.flush()
 
             # Step 2: Generate world rules for each attribute
             world_rules_list: list[GeneratedWorldRules] = []

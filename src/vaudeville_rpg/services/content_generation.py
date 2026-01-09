@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.models.effects import Action, Condition, Effect
 from ..db.models.enums import (
     ActionType,
+    AttributeCategory,
     ConditionPhase,
     ConditionType,
     EffectCategory,
@@ -15,7 +16,7 @@ from ..db.models.enums import (
     TargetType,
 )
 from ..db.models.items import Item
-from ..db.models.settings import Setting
+from ..db.models.settings import AttributeDefinition, Setting
 from ..llm import (
     EffectTemplateGenerator,
     GeneratedItem,
@@ -82,6 +83,20 @@ class ContentGenerationService:
 
             # Store attribute names for later
             attribute_names = [attr.name for attr in generated.attributes]
+
+            # Persist attributes to database
+            for attr in generated.attributes:
+                attr_def = AttributeDefinition(
+                    setting_id=setting.id,
+                    name=attr.name,
+                    display_name=attr.display_name,
+                    description=attr.description,
+                    category=AttributeCategory.GENERATABLE,
+                    max_stacks=10,  # Default max stacks
+                    default_stacks=0,
+                )
+                self.session.add(attr_def)
+            await self.session.flush()
 
             # Step 2: Generate world rules for each attribute
             rules_created = 0
