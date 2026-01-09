@@ -5,6 +5,7 @@ import logging
 from typing import Any, Callable
 
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
 
 logger = logging.getLogger("vaudeville_rpg.bot")
@@ -28,6 +29,13 @@ def safe_handler(func: Callable) -> Callable:
 
         try:
             return await func(*args, **kwargs)
+        except TelegramBadRequest as e:
+            # Handle "query is too old" - this happens when user clicks old buttons
+            if "query is too old" in str(e).lower():
+                logger.debug(f"Ignoring old callback query in {func.__name__}")
+                return None
+            # Re-raise other TelegramBadRequest errors to be handled below
+            raise
         except Exception as e:
             # Log the error with full context
             user_id = None
@@ -57,6 +65,10 @@ def safe_handler(func: Callable) -> Callable:
                     await update.reply(error_msg)
                 elif isinstance(update, CallbackQuery):
                     await update.answer(error_msg, show_alert=True)
+            except TelegramBadRequest as tg_err:
+                # If we can't answer because query is too old, just ignore
+                if "query is too old" not in str(tg_err).lower():
+                    logger.exception("Failed to send error message to user")
             except Exception:
                 # If we can't even send the error message, just log it
                 logger.exception("Failed to send error message to user")
