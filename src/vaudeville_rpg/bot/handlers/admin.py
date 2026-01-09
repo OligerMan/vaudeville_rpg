@@ -1,5 +1,7 @@
 """Admin handlers - setting generation and management."""
 
+import html
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -139,7 +141,7 @@ async def cmd_generate_setting(message: Message, bot: Bot) -> None:
 
             warning_text = (
                 f"<b>Warning: A setting already exists in this chat!</b>\n\n"
-                f'Current setting: "{stats.name[:50]}"\n'
+                f'Current setting: "{html.escape(stats.name[:50])}"\n'
                 f"- {stats.item_count} items\n"
                 f"- {stats.player_count} players\n"
             )
@@ -182,9 +184,10 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
             if result.success:
                 await session.commit()
 
+                setting_name = html.escape(result.setting.name[:80]) if result.setting else "Unknown"
                 success_text = (
                     "<b>Setting generated successfully!</b>\n\n"
-                    f"<b>Name:</b> {result.setting.name[:80] if result.setting else 'Unknown'}\n"
+                    f"<b>Name:</b> {setting_name}\n"
                     f"<b>Attributes:</b> {result.attributes_created}\n"
                     f"<b>World Rules:</b> {result.world_rules_created}\n"
                     f"<b>Items:</b> {result.items_created}\n\n"
@@ -195,14 +198,14 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
             else:
                 await session.rollback()
                 await status_msg.edit_text(
-                    f"<b>Generation failed:</b>\n{result.message}",
+                    f"<b>Generation failed:</b>\n{html.escape(result.message)}",
                     parse_mode="HTML",
                 )
 
         except Exception as e:
             await session.rollback()
             await status_msg.edit_text(
-                f"<b>Error during generation:</b>\n{str(e)[:200]}",
+                f"<b>Error during generation:</b>\n{html.escape(str(e)[:200])}",
                 parse_mode="HTML",
             )
 
@@ -283,9 +286,10 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
             if result.success:
                 await session.commit()
 
+                setting_name = html.escape(result.setting.name[:80]) if result.setting else "Unknown"
                 success_text = (
                     "<b>Setting generated successfully!</b>\n\n"
-                    f"<b>Name:</b> {result.setting.name[:80] if result.setting else 'Unknown'}\n"
+                    f"<b>Name:</b> {setting_name}\n"
                     f"<b>Attributes:</b> {result.attributes_created}\n"
                     f"<b>World Rules:</b> {result.world_rules_created}\n"
                     f"<b>Items:</b> {result.items_created}\n\n"
@@ -296,14 +300,14 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
             else:
                 await session.rollback()
                 await callback.message.edit_text(
-                    f"<b>Generation failed:</b>\n{result.message}",
+                    f"<b>Generation failed:</b>\n{html.escape(result.message)}",
                     parse_mode="HTML",
                 )
 
         except Exception as e:
             await session.rollback()
             await callback.message.edit_text(
-                f"<b>Error during generation:</b>\n{str(e)[:200]}",
+                f"<b>Error during generation:</b>\n{html.escape(str(e)[:200])}",
                 parse_mode="HTML",
             )
 
