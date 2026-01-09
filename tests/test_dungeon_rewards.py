@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from vaudeville_rpg.bot.handlers.dungeons import format_item_mechanics
+from vaudeville_rpg.bot.utils import format_item_mechanics
 from vaudeville_rpg.db.models.dungeons import Dungeon
 from vaudeville_rpg.db.models.enums import ActionType, DungeonDifficulty, DungeonStatus, ItemSlot, TargetType
 from vaudeville_rpg.db.models.items import Item

@@ -18,8 +18,7 @@ from ...db.models.items import Item
 from ...db.models.players import Player
 from ...db.models.settings import Setting
 from ...services.players import PlayerService
-from ..utils import log_command, safe_handler, validate_message_user
-from .dungeons import format_item_mechanics
+from ..utils import format_item_mechanics, log_command, safe_handler, validate_message_user
 
 logger = logging.getLogger(__name__)
 

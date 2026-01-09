@@ -8,11 +8,12 @@ from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
 from ...db.models.effects import Effect
-from ...db.models.enums import ActionType, DuelActionType, DungeonDifficulty, ItemSlot, TargetType
+from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
 from ...db.models.items import Item
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
 from ..utils import (
+    format_item_mechanics,
     log_callback,
     log_command,
     safe_handler,
@@ -34,72 +35,6 @@ REWARD_REJECT = "reward_reject:"
 
 # Rarity display names
 RARITY_NAMES = {1: "Common", 2: "Uncommon", 3: "Rare", 4: "Epic", 5: "Legendary"}
-
-
-def format_item_mechanics(item: Item) -> str:
-    """Format item mechanics description from its effects.
-
-    Returns a human-readable description of what the item does mechanically.
-    Consolidates similar effects (e.g., multiple damage effects are summed).
-    """
-    if not item.effects:
-        return "No special effects"
-
-    # Aggregate effects by type and target
-    # Key: (action_type, target, attribute) -> total value
-    aggregated: dict[tuple, int] = {}
-
-    for effect in item.effects:
-        action = effect.action
-        action_data = action.action_data
-        target = effect.target
-
-        value = action_data.get("value", 0)
-        attribute = action_data.get("attribute", "")
-
-        # Create a key for aggregation
-        # For damage/attack, treat them the same
-        if action.action_type in (ActionType.ATTACK, ActionType.DAMAGE):
-            key = ("damage", target, "")
-        else:
-            key = (action.action_type.value, target, attribute)
-
-        # Sum values for same effect type
-        if key in aggregated:
-            aggregated[key] += value
-        else:
-            aggregated[key] = value
-
-    # Format aggregated effects
-    descriptions = []
-    for (action_type, target, attribute), value in aggregated.items():
-        target_text = "self" if target == TargetType.SELF else "enemy"
-
-        if action_type == "damage":
-            descriptions.append(f"Deals {value} damage to {target_text}")
-        elif action_type == ActionType.HEAL.value:
-            descriptions.append(f"Heals {value} HP")
-        elif action_type == ActionType.ADD_STACKS.value:
-            attr_display = attribute.replace("_", " ").title()
-            descriptions.append(f"Adds {value} {attr_display} to {target_text}")
-        elif action_type == ActionType.REMOVE_STACKS.value:
-            attr_display = attribute.replace("_", " ").title()
-            descriptions.append(f"Removes {value} {attr_display} from {target_text}")
-        elif action_type == ActionType.REDUCE_INCOMING_DAMAGE.value:
-            descriptions.append(f"Reduces incoming damage by {value}")
-        elif action_type == ActionType.SPEND.value:
-            attr_display = attribute.replace("_", " ").upper() if attribute else "SP"
-            descriptions.append(f"Costs {value} {attr_display}")
-        elif action_type == ActionType.MODIFY_CURRENT_MAX.value:
-            attr_display = attribute.replace("_", " ").upper() if attribute else "stat"
-            if value > 0:
-                descriptions.append(f"+{value} max {attr_display}")
-            else:
-                descriptions.append(f"{value} max {attr_display}")
-        else:
-            descriptions.append(f"{action_type}: {value}")
-
-    return ", ".join(descriptions) if descriptions else "No special effects"
 
 
 def get_difficulty_keyboard() -> InlineKeyboardMarkup:
