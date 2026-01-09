@@ -1,5 +1,6 @@
 """Common bot handlers - /start, /help commands."""
 
+import html
 import logging
 
 from aiogram import Bot, Router
@@ -72,11 +73,12 @@ async def on_bot_added_to_chat(event: ChatMemberUpdated, bot: Bot) -> None:
 
     if is_configured:
         # Setting already exists, welcome back
+        setting_desc = html.escape(setting.description) if setting.description else "A unique game world"
         await bot.send_message(
             chat_id,
             f"<b>VaudevilleRPG is back!</b>\n\n"
-            f"<b>Setting:</b> {setting.name}\n"
-            f"<i>{setting.description or 'A unique game world'}</i>\n\n"
+            f"<b>Setting:</b> {html.escape(setting.name)}\n"
+            f"<i>{setting_desc}</i>\n\n"
             "Use /help to see available commands.",
         )
     elif is_admin:
@@ -131,10 +133,11 @@ async def cmd_start(message: Message) -> None:
         )
     else:
         # Game is ready
+        setting_desc = html.escape(setting.description) if setting.description else "A unique game world"
         await message.answer(
             f"<b>Welcome to VaudevilleRPG!</b>\n\n"
-            f"<b>Setting:</b> {setting.name}\n"
-            f"<i>{setting.description or 'A unique game world'}</i>\n\n"
+            f"<b>Setting:</b> {html.escape(setting.name)}\n"
+            f"<i>{setting_desc}</i>\n\n"
             "<b>Quick Start:</b>\n"
             " Reply to someone's message and use /challenge to duel them\n"
             " Use /dungeon to fight enemies and earn items\n"
@@ -257,9 +260,9 @@ async def cmd_profile(message: Message) -> None:
             result = await session.execute(stmt)
             misc_item = result.scalar_one_or_none()
 
-        # Format profile
+        # Format profile (escape HTML in user/LLM-generated content)
         lines = [
-            f"<b>{player.display_name}</b>",
+            f"<b>{html.escape(player.display_name)}</b>",
             "",
             f"Rating: <b>{player.rating}</b> (#{rank})",
             f"HP: {player.max_hp}",
@@ -271,22 +274,22 @@ async def cmd_profile(message: Message) -> None:
         # Format each item with mechanics
         if attack_item:
             mechanics = format_item_mechanics(attack_item)
-            lines.append(f"  Attack: {attack_item.name}")
-            lines.append(f"    <i>{mechanics}</i>")
+            lines.append(f"  Attack: {html.escape(attack_item.name)}")
+            lines.append(f"    <i>{html.escape(mechanics)}</i>")
         else:
             lines.append("  Attack: None")
 
         if defense_item:
             mechanics = format_item_mechanics(defense_item)
-            lines.append(f"  Defense: {defense_item.name}")
-            lines.append(f"    <i>{mechanics}</i>")
+            lines.append(f"  Defense: {html.escape(defense_item.name)}")
+            lines.append(f"    <i>{html.escape(mechanics)}</i>")
         else:
             lines.append("  Defense: None")
 
         if misc_item:
             mechanics = format_item_mechanics(misc_item)
-            lines.append(f"  Misc: {misc_item.name}")
-            lines.append(f"    <i>{mechanics}</i>")
+            lines.append(f"  Misc: {html.escape(misc_item.name)}")
+            lines.append(f"    <i>{html.escape(mechanics)}</i>")
         else:
             lines.append("  Misc: None")
 
@@ -330,7 +333,7 @@ async def cmd_leaderboard(message: Message) -> None:
             elif i == 3:
                 medal = " "
 
-            lines.append(f"{i}.{medal} <b>{player.display_name}</b> - {player.rating}")
+            lines.append(f"{i}.{medal} <b>{html.escape(player.display_name)}</b> - {player.rating}")
 
         await message.answer("\n".join(lines))
 
@@ -470,9 +473,9 @@ async def cmd_setting(message: Message) -> None:
         conditions_cache: dict[int, Condition | None] = {}
         attr_mechanics = await _get_attribute_mechanics(session, setting.id, conditions_cache)
 
-        # Format setting info
+        # Format setting info (escape HTML in user/LLM-generated content)
         lines = [
-            f"<b>{setting.name}</b>",
+            f"<b>{html.escape(setting.name)}</b>",
             "",
         ]
 
@@ -481,11 +484,11 @@ async def cmd_setting(message: Message) -> None:
             desc = setting.description
             if len(desc) > 300:
                 desc = desc[:297] + "..."
-            lines.append(f"<i>{desc}</i>")
+            lines.append(f"<i>{html.escape(desc)}</i>")
             lines.append("")
 
         # Special points info
-        lines.append(f"<b>Special Points:</b> {setting.special_points_name}")
+        lines.append(f"<b>Special Points:</b> {html.escape(setting.special_points_name)}")
         lines.append(f"  Regenerates {setting.special_points_regen} per turn")
         lines.append("")
 
@@ -495,11 +498,11 @@ async def cmd_setting(message: Message) -> None:
             lines.append("<b>Attributes:</b>")
             for attr in gen_attrs:
                 max_info = f" (max: {attr.max_stacks})" if attr.max_stacks else ""
-                lines.append(f"  <b>{attr.display_name}</b>{max_info}")
+                lines.append(f"  <b>{html.escape(attr.display_name)}</b>{max_info}")
 
                 # Show mechanics from world rules
                 mechanics = attr_mechanics.get(attr.name, [])
                 if mechanics:
-                    lines.append(f"    {'; '.join(mechanics)}")
+                    lines.append(f"    {html.escape('; '.join(mechanics))}")
 
         await message.answer("\n".join(lines))
