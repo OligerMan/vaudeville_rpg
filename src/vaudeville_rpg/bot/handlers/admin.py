@@ -227,6 +227,9 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
         await callback.answer("You are not authorized to do this.", show_alert=True)
         return
 
+    # Answer callback immediately to prevent timeout (generation takes a long time)
+    await callback.answer("Starting generation...")
+
     # Get pending description from database
     async with async_session_factory() as session:
         stmt = select(PendingGeneration).where(PendingGeneration.chat_id == chat_id)
@@ -303,8 +306,6 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
                 f"<b>Error during generation:</b>\n{str(e)[:200]}",
                 parse_mode="HTML",
             )
-
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith(CANCEL_GENERATE))
