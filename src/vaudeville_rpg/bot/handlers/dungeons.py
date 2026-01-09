@@ -4,9 +4,11 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from ...db.engine import async_session_factory
-from ...db.models.enums import DuelActionType, DungeonDifficulty, ItemSlot
+from ...db.models.effects import Effect
+from ...db.models.enums import ActionType, DuelActionType, DungeonDifficulty, ItemSlot, TargetType
 from ...db.models.items import Item
 from ...services.dungeons import DungeonService
 from ...services.players import PlayerService
@@ -32,6 +34,59 @@ REWARD_REJECT = "reward_reject:"
 
 # Rarity display names
 RARITY_NAMES = {1: "Common", 2: "Uncommon", 3: "Rare", 4: "Epic", 5: "Legendary"}
+
+
+def format_item_mechanics(item: Item) -> str:
+    """Format item mechanics description from its effects.
+
+    Returns a human-readable description of what the item does mechanically.
+    """
+    if not item.effects:
+        return "No special effects"
+
+    descriptions = []
+    for effect in item.effects:
+        action = effect.action
+        action_data = action.action_data
+        target = effect.target
+
+        # Get the value
+        value = action_data.get("value", 0)
+        attribute = action_data.get("attribute", "")
+
+        # Format target text
+        target_text = "self" if target == TargetType.SELF else "enemy"
+
+        # Format based on action type
+        if action.action_type == ActionType.ATTACK:
+            descriptions.append(f"Deals {value} damage to {target_text}")
+        elif action.action_type == ActionType.DAMAGE:
+            descriptions.append(f"Deals {value} damage to {target_text}")
+        elif action.action_type == ActionType.HEAL:
+            descriptions.append(f"Heals {value} HP")
+        elif action.action_type == ActionType.ADD_STACKS:
+            # Capitalize attribute name for display
+            attr_display = attribute.replace("_", " ").title()
+            descriptions.append(f"Adds {value} {attr_display} to {target_text}")
+        elif action.action_type == ActionType.REMOVE_STACKS:
+            attr_display = attribute.replace("_", " ").title()
+            descriptions.append(f"Removes {value} {attr_display} from {target_text}")
+        elif action.action_type == ActionType.REDUCE_INCOMING_DAMAGE:
+            descriptions.append(f"Reduces incoming damage by {value}")
+        elif action.action_type == ActionType.SPEND:
+            attr_display = attribute.replace("_", " ").upper() if attribute else "SP"
+            descriptions.append(f"Costs {value} {attr_display}")
+        elif action.action_type == ActionType.MODIFY_CURRENT_MAX:
+            attr_display = attribute.replace("_", " ").upper() if attribute else "stat"
+            if value > 0:
+                descriptions.append(f"+{value} max {attr_display}")
+            else:
+                descriptions.append(f"{value} max {attr_display}")
+        else:
+            # Fallback for any other action types
+            descriptions.append(f"{action.action_type.value}: {value}")
+
+    return ", ".join(descriptions) if descriptions else "No special effects"
 
 
 def get_difficulty_keyboard() -> InlineKeyboardMarkup:
@@ -118,17 +173,22 @@ def format_reward_comparison(reward_item: Item, current_item: Item | None, slot_
     """Format reward item comparison with current equipped item."""
     rarity = RARITY_NAMES.get(reward_item.rarity, "Unknown")
 
+    # Get mechanics description for reward item
+    reward_mechanics = format_item_mechanics(reward_item)
+
     lines = [
         f"<b>Reward: {reward_item.name}</b>",
         f"Rarity: {rarity}",
         f"Slot: {slot_name}",
-        f"<i>{reward_item.description}</i>",
+        f"Effects: {reward_mechanics}",
         "",
     ]
 
     if current_item:
         current_rarity = RARITY_NAMES.get(current_item.rarity, "Unknown")
+        current_mechanics = format_item_mechanics(current_item)
         lines.append(f"<b>Current {slot_name}:</b> {current_item.name} ({current_rarity})")
+        lines.append(f"Effects: {current_mechanics}")
     else:
         lines.append(f"<b>Current {slot_name}:</b> None")
 
@@ -394,22 +454,37 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
             if dungeon_result.dungeon_completed:
                 # Check if there's a reward
                 if dungeon_result.reward_item_id:
-                    # Get reward item details
-                    reward_stmt = select(Item).where(Item.id == dungeon_result.reward_item_id)
+                    # Get reward item details with effects and actions loaded
+                    reward_stmt = (
+                        select(Item)
+                        .where(Item.id == dungeon_result.reward_item_id)
+                        .options(selectinload(Item.effects).selectinload(Effect.action))
+                    )
                     reward_result = await session.execute(reward_stmt)
                     reward_item = reward_result.scalar_one_or_none()
 
                     if reward_item:
-                        # Get current item in the same slot for comparison
+                        # Get current item in the same slot for comparison (with effects loaded)
                         current_item = None
+                        current_item_id = None
                         slot_name = reward_item.slot.value.title()
 
                         if reward_item.slot == ItemSlot.ATTACK:
-                            current_item = player.attack_item
+                            current_item_id = player.attack_item_id
                         elif reward_item.slot == ItemSlot.DEFENSE:
-                            current_item = player.defense_item
+                            current_item_id = player.defense_item_id
                         elif reward_item.slot == ItemSlot.MISC:
-                            current_item = player.misc_item
+                            current_item_id = player.misc_item_id
+
+                        if current_item_id:
+                            # Load current item with effects and actions
+                            current_stmt = (
+                                select(Item)
+                                .where(Item.id == current_item_id)
+                                .options(selectinload(Item.effects).selectinload(Effect.action))
+                            )
+                            current_result = await session.execute(current_stmt)
+                            current_item = current_result.scalar_one_or_none()
 
                         comparison = format_reward_comparison(reward_item, current_item, slot_name)
 
