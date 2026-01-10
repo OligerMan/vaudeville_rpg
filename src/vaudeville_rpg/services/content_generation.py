@@ -211,6 +211,7 @@ class ContentGenerationService:
             Item.setting_id == setting_id,
             Item.rarity >= min_rarity,
             Item.rarity <= max_rarity,
+            Item.name != "Fist",  # Exclude default attack item from rewards
         )
         result = await self.session.execute(stmt)
         items = list(result.scalars().all())
