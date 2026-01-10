@@ -1,5 +1,7 @@
 """Dungeon handlers - /dungeon command and dungeon interactions."""
 
+import html
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
@@ -590,17 +592,21 @@ async def callback_equip_reward(callback: CallbackQuery) -> None:
             return
 
         # Equip the item in the appropriate slot
+        slot_name = "item"
         if reward_item.slot == ItemSlot.ATTACK:
             player.attack_item_id = reward_item.id
+            slot_name = "Attack"
         elif reward_item.slot == ItemSlot.DEFENSE:
             player.defense_item_id = reward_item.id
+            slot_name = "Defense"
         elif reward_item.slot == ItemSlot.MISC:
             player.misc_item_id = reward_item.id
+            slot_name = "Misc"
 
         await session.commit()
 
         await callback.message.edit_text(
-            f"Equipped <b>{reward_item.name}</b>!",
+            f"Equipped <b>{html.escape(reward_item.name)}</b> as {slot_name}!",
             reply_markup=None,
         )
         await callback.answer("Item equipped!")
