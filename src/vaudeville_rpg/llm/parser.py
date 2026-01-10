@@ -163,6 +163,144 @@ class WorldRulesParser:
 
         return effect.id
 
+    async def create_armor_rules(self, setting_id: int) -> ParseResult:
+        """Create hardcoded armor world rules.
+
+        These rules are always needed because defense items always add 'armor' stacks.
+        This ensures armor damage reduction works regardless of what the LLM generates.
+
+        Creates:
+        1. armor_damage_reduction: At PRE_DAMAGE, reduce damage by 2 per armor stack
+        2. armor_decay: At POST_DAMAGE, remove 1 armor stack when hit
+
+        Args:
+            setting_id: Setting to create rules for
+
+        Returns:
+            ParseResult with created effect IDs
+        """
+        import time
+
+        created_ids = []
+        unique_suffix = int(time.time() * 1000000)
+
+        try:
+            # Rule 1: Armor Damage Reduction (PRE_DAMAGE)
+            # Phase condition
+            phase_cond_1 = Condition(
+                name=f"armor_reduction_phase_{unique_suffix}",
+                condition_type=ConditionType.PHASE,
+                condition_data={"phase": "pre_damage"},
+            )
+            self.session.add(phase_cond_1)
+            await self.session.flush()
+
+            # Has stacks condition
+            stacks_cond_1 = Condition(
+                name=f"armor_reduction_stacks_{unique_suffix}",
+                condition_type=ConditionType.HAS_STACKS,
+                condition_data={"attribute": "armor", "min_count": 1},
+            )
+            self.session.add(stacks_cond_1)
+            await self.session.flush()
+
+            # AND condition
+            and_cond_1 = Condition(
+                name=f"armor_reduction_condition_{unique_suffix}",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [phase_cond_1.id, stacks_cond_1.id]},
+            )
+            self.session.add(and_cond_1)
+            await self.session.flush()
+
+            # Action: reduce incoming damage by 2 per armor stack
+            action_1 = Action(
+                name=f"armor_reduction_action_{unique_suffix}",
+                action_type=ActionType.REDUCE_INCOMING_DAMAGE,
+                action_data={"value": 2, "per_stack": True, "attribute": "armor"},
+            )
+            self.session.add(action_1)
+            await self.session.flush()
+
+            # Effect
+            effect_1 = Effect(
+                setting_id=setting_id,
+                name="armor_damage_reduction",
+                description="Armor reduces incoming damage by 2 per stack",
+                condition_id=and_cond_1.id,
+                action_id=action_1.id,
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+            )
+            self.session.add(effect_1)
+            await self.session.flush()
+            created_ids.append(effect_1.id)
+
+            # Rule 2: Armor Decay (POST_DAMAGE)
+            unique_suffix_2 = unique_suffix + 1
+
+            # Phase condition
+            phase_cond_2 = Condition(
+                name=f"armor_decay_phase_{unique_suffix_2}",
+                condition_type=ConditionType.PHASE,
+                condition_data={"phase": "post_damage"},
+            )
+            self.session.add(phase_cond_2)
+            await self.session.flush()
+
+            # Has stacks condition
+            stacks_cond_2 = Condition(
+                name=f"armor_decay_stacks_{unique_suffix_2}",
+                condition_type=ConditionType.HAS_STACKS,
+                condition_data={"attribute": "armor", "min_count": 1},
+            )
+            self.session.add(stacks_cond_2)
+            await self.session.flush()
+
+            # AND condition
+            and_cond_2 = Condition(
+                name=f"armor_decay_condition_{unique_suffix_2}",
+                condition_type=ConditionType.AND,
+                condition_data={"condition_ids": [phase_cond_2.id, stacks_cond_2.id]},
+            )
+            self.session.add(and_cond_2)
+            await self.session.flush()
+
+            # Action: remove 1 armor stack
+            action_2 = Action(
+                name=f"armor_decay_action_{unique_suffix_2}",
+                action_type=ActionType.REMOVE_STACKS,
+                action_data={"value": 1, "attribute": "armor"},
+            )
+            self.session.add(action_2)
+            await self.session.flush()
+
+            # Effect
+            effect_2 = Effect(
+                setting_id=setting_id,
+                name="armor_decay",
+                description="Armor loses 1 stack when hit",
+                condition_id=and_cond_2.id,
+                action_id=action_2.id,
+                target=TargetType.SELF,
+                category=EffectCategory.WORLD_RULE,
+            )
+            self.session.add(effect_2)
+            await self.session.flush()
+            created_ids.append(effect_2.id)
+
+            return ParseResult(
+                success=True,
+                message="Created 2 armor world rules",
+                created_ids=created_ids,
+            )
+
+        except Exception as e:
+            return ParseResult(
+                success=False,
+                message=f"Failed to create armor rules: {e!s}",
+            )
+
 
 class ItemParser:
     """Parse items from structured data to database models."""

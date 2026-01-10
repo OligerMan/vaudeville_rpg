@@ -167,6 +167,14 @@ class SettingFactory:
                 self.session.add(attr_def)
             await self.session.flush()
 
+            # Create hardcoded armor world rules (required for defense items to work)
+            armor_result = await self.rules_parser.create_armor_rules(db_setting.id)
+            if not armor_result.success:
+                result.message = f"Failed creating armor rules: {armor_result.message}"
+                result.success = False
+                return result
+            result.world_rules_created += 2  # armor_damage_reduction + armor_decay
+
             # Step 2: Generate world rules for each attribute
             world_rules_list: list[GeneratedWorldRules] = []
             for attr in generated_setting.attributes:
