@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Settings, get_settings
-from ..db.models.settings import Setting
+from ..db.models.enums import AttributeCategory
+from ..db.models.settings import AttributeDefinition, Setting
 from .client import LLMClient, get_llm_client
 from .factory import ItemFactory, Rarity
 from .generators import (
@@ -104,7 +105,7 @@ class SettingFactory:
         user_prompt: str,
         validate: bool = True,
         retry_on_validation_fail: bool = True,
-        max_retries: int = 2,
+        max_retries: int = 5,
     ) -> PipelineResult:
         """Create a complete setting from user prompt.
 
@@ -151,6 +152,20 @@ class SettingFactory:
             self.session.add(db_setting)
             await self.session.flush()
             result.setting = db_setting
+
+            # Persist attributes to database
+            for attr in generated_setting.attributes:
+                attr_def = AttributeDefinition(
+                    setting_id=db_setting.id,
+                    name=attr.name,
+                    display_name=attr.display_name,
+                    description=attr.description,
+                    category=AttributeCategory.GENERATABLE,
+                    max_stacks=10,  # Default max stacks
+                    default_stacks=0,
+                )
+                self.session.add(attr_def)
+            await self.session.flush()
 
             # Step 2: Generate world rules for each attribute
             world_rules_list: list[GeneratedWorldRules] = []
@@ -279,6 +294,7 @@ class SettingFactory:
     ) -> PipelineStep:
         """Step 2: Generate world rules for an attribute."""
         step = PipelineStep(name=f"generate_rules_{attr.name}", success=False, message="")
+        last_validation_errors: list[str] = []
 
         for attempt in range(max_retries + 1):
             try:
@@ -295,11 +311,14 @@ class SettingFactory:
                     validator = WorldRulesValidator(known_attributes)
                     validation = validator.validate(generated)
                     if not validation.valid:
-                        step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
-                        if retry and attempt < max_retries:
+                        last_validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
+                        # Silently retry without showing error
+                        if attempt < max_retries:
                             await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
-                        step.message = f"Validation failed: {step.validation_errors}"
+                        # Only show error after all retries exhausted
+                        step.validation_errors = last_validation_errors
+                        step.message = f"Validation failed after {max_retries + 1} attempts"
                         return step
 
                 step.success = True
@@ -308,10 +327,11 @@ class SettingFactory:
                 return step
 
             except Exception as e:
-                step.message = f"Generation failed: {e!s}"
+                # Silently retry on exceptions too
                 if attempt < max_retries:
                     await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
+                step.message = f"Generation failed after {max_retries + 1} attempts: {e!s}"
                 return step
 
         return step

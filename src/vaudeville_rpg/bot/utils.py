@@ -1,13 +1,18 @@
 """Bot utilities - error handling, logging, and validation helpers."""
 
+import asyncio
 import functools
 import logging
 from typing import Any, Callable
 
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
 
 logger = logging.getLogger("vaudeville_rpg.bot")
+
+# Track users with callbacks in progress (user_id -> True if busy)
+_user_callback_locks: dict[int, asyncio.Lock] = {}
 
 
 def safe_handler(func: Callable) -> Callable:
@@ -28,6 +33,13 @@ def safe_handler(func: Callable) -> Callable:
 
         try:
             return await func(*args, **kwargs)
+        except TelegramBadRequest as e:
+            # Handle "query is too old" - this happens when user clicks old buttons
+            if "query is too old" in str(e).lower():
+                logger.debug(f"Ignoring old callback query in {func.__name__}")
+                return None
+            # Re-raise other TelegramBadRequest errors to be handled below
+            raise
         except Exception as e:
             # Log the error with full context
             user_id = None
@@ -57,11 +69,57 @@ def safe_handler(func: Callable) -> Callable:
                     await update.reply(error_msg)
                 elif isinstance(update, CallbackQuery):
                     await update.answer(error_msg, show_alert=True)
+            except TelegramBadRequest as tg_err:
+                # If we can't answer because query is too old, just ignore
+                if "query is too old" not in str(tg_err).lower():
+                    logger.exception("Failed to send error message to user")
             except Exception:
                 # If we can't even send the error message, just log it
                 logger.exception("Failed to send error message to user")
 
             return None
+
+    return wrapper
+
+
+def throttle_callback(func: Callable) -> Callable:
+    """Decorator to throttle callback queries - one at a time per user.
+
+    If a user triggers a callback while another is still processing,
+    the new callback is ignored with a "Please wait" message.
+    """
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        # Find the callback query in args
+        callback: CallbackQuery | None = None
+        for arg in args:
+            if isinstance(arg, CallbackQuery):
+                callback = arg
+                break
+
+        if not callback or not callback.from_user:
+            return await func(*args, **kwargs)
+
+        user_id = callback.from_user.id
+
+        # Get or create lock for this user
+        if user_id not in _user_callback_locks:
+            _user_callback_locks[user_id] = asyncio.Lock()
+
+        lock = _user_callback_locks[user_id]
+
+        # Try to acquire lock without waiting
+        if lock.locked():
+            # User already has a callback in progress
+            try:
+                await callback.answer("Please wait...", show_alert=False)
+            except TelegramBadRequest:
+                pass  # Ignore if callback is too old
+            return None
+
+        async with lock:
+            return await func(*args, **kwargs)
 
     return wrapper
 

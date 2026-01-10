@@ -14,12 +14,12 @@ class CombatState:
 
     player_id: int
     participant_id: int
-    display_name: str
     current_hp: int
     max_hp: int
     current_special_points: int
     max_special_points: int
     attribute_stacks: dict[str, int] = field(default_factory=dict)
+    display_name: str = ""
 
     # Temporary modifiers for the current turn (reset after turn)
     incoming_damage_reduction: int = 0

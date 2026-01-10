@@ -12,6 +12,7 @@ from ..utils import (
     log_callback,
     log_command,
     safe_handler,
+    throttle_callback,
     validate_callback_message,
     validate_reply_message,
 )
@@ -187,6 +188,7 @@ async def cmd_challenge(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith(ACCEPT_DUEL))
+@throttle_callback
 @safe_handler
 @log_callback("accept_duel")
 async def callback_accept_duel(callback: CallbackQuery) -> None:
@@ -243,6 +245,7 @@ async def callback_accept_duel(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DECLINE_DUEL))
+@throttle_callback
 @safe_handler
 @log_callback("decline_duel")
 async def callback_decline_duel(callback: CallbackQuery) -> None:
@@ -289,6 +292,7 @@ async def callback_decline_duel(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(ACTION_PREFIX))
+@throttle_callback
 @safe_handler
 @log_callback("duel_action")
 async def callback_duel_action(callback: CallbackQuery) -> None:

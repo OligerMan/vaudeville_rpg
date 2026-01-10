@@ -279,6 +279,7 @@ class TestCombatLogger:
             current_special_points=50,
             max_special_points=50,
             attribute_stacks={"poison": 3},
+            display_name="TestPlayer",
         )
 
     def test_create_logger(self):
@@ -374,6 +375,7 @@ class TestCombatLogger:
             max_hp=100,
             current_special_points=50,
             max_special_points=50,
+            display_name="Enemy",
         )
         state_after = CombatState(
             player_id=2,
@@ -382,6 +384,7 @@ class TestCombatLogger:
             max_hp=100,
             current_special_points=50,
             max_special_points=50,
+            display_name="Enemy",
         )
 
         self.logger.log_action_executed(
@@ -417,6 +420,7 @@ class TestCombatLogger:
             current_special_points=50,
             max_special_points=50,
             pending_damage=20,
+            display_name="TestPlayer",
         )
         state_after = CombatState(
             player_id=1,
@@ -425,6 +429,7 @@ class TestCombatLogger:
             max_hp=100,
             current_special_points=50,
             max_special_points=50,
+            display_name="TestPlayer",
         )
 
         self.logger.log_pending_damage_applied(
@@ -487,6 +492,7 @@ class TestTurnResolverWithLogging:
             current_special_points=50,
             max_special_points=50,
             attribute_stacks={"poison": 3},
+            display_name="Player1",
         )
         self.state2 = CombatState(
             player_id=2,
@@ -495,6 +501,7 @@ class TestTurnResolverWithLogging:
             max_hp=100,
             current_special_points=50,
             max_special_points=50,
+            display_name="Player2",
         )
         self.context = DuelContext(
             duel_id=1,
@@ -749,6 +756,7 @@ class TestEffectProcessorWithLogging:
             current_special_points=50,
             max_special_points=50,
             attribute_stacks={"poison": 3},
+            display_name="Player1",
         )
         self.state2 = CombatState(
             player_id=2,
@@ -757,6 +765,7 @@ class TestEffectProcessorWithLogging:
             max_hp=100,
             current_special_points=50,
             max_special_points=50,
+            display_name="Player2",
         )
         self.context = DuelContext(
             duel_id=1,

@@ -59,6 +59,7 @@ class StateSnapshot:
     attribute_stacks: dict[str, int]
     incoming_damage_reduction: int
     pending_damage: int
+    display_name: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -71,6 +72,7 @@ class StateSnapshot:
             "attribute_stacks": dict(self.attribute_stacks),
             "incoming_damage_reduction": self.incoming_damage_reduction,
             "pending_damage": self.pending_damage,
+            "display_name": self.display_name,
         }
 
 
@@ -325,6 +327,7 @@ class CombatLogger:
             attribute_stacks=dict(state.attribute_stacks),
             incoming_damage_reduction=state.incoming_damage_reduction,
             pending_damage=state.pending_damage,
+            display_name=getattr(state, "display_name", ""),
         )
 
     def log_turn_start(self, turn_number: int, states: dict[int, Any]) -> None:
