@@ -16,6 +16,7 @@ from ..utils import (
     log_callback,
     log_command,
     safe_handler,
+    throttle_callback,
     validate_callback_message,
     validate_message_user,
 )
@@ -211,6 +212,7 @@ async def _start_generation(message: Message, chat_id: int, description: str) ->
 
 
 @router.callback_query(F.data.startswith(CONFIRM_GENERATE))
+@throttle_callback
 @safe_handler
 @log_callback("confirm_generate")
 async def callback_confirm_generate(callback: CallbackQuery) -> None:
@@ -313,6 +315,7 @@ async def callback_confirm_generate(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(CANCEL_GENERATE))
+@throttle_callback
 @safe_handler
 @log_callback("cancel_generate")
 async def callback_cancel_generate(callback: CallbackQuery) -> None:

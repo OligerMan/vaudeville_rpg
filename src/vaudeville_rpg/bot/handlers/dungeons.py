@@ -19,6 +19,7 @@ from ..utils import (
     log_callback,
     log_command,
     safe_handler,
+    throttle_callback,
     validate_callback_message,
     validate_message_user,
 )
@@ -241,6 +242,7 @@ async def cmd_dungeon(message: Message) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_START))
+@throttle_callback
 @safe_handler
 @log_callback("start_dungeon")
 async def callback_start_dungeon(callback: CallbackQuery) -> None:
@@ -304,6 +306,7 @@ async def callback_start_dungeon(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_ACTION))
+@throttle_callback
 @safe_handler
 @log_callback("dungeon_action")
 async def callback_dungeon_action(callback: CallbackQuery) -> None:
@@ -505,6 +508,7 @@ async def callback_dungeon_action(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(DUNGEON_ABANDON))
+@throttle_callback
 @safe_handler
 @log_callback("abandon_dungeon")
 async def callback_abandon_dungeon(callback: CallbackQuery) -> None:
@@ -546,6 +550,7 @@ async def callback_abandon_dungeon(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(REWARD_EQUIP))
+@throttle_callback
 @safe_handler
 @log_callback("equip_reward")
 async def callback_equip_reward(callback: CallbackQuery) -> None:
@@ -613,6 +618,7 @@ async def callback_equip_reward(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith(REWARD_REJECT))
+@throttle_callback
 @safe_handler
 @log_callback("reject_reward")
 async def callback_reject_reward(callback: CallbackQuery) -> None:

@@ -189,6 +189,7 @@ class EffectProcessor:
                     attribute_stacks=dict(state_before_snapshot.attribute_stacks),
                     incoming_damage_reduction=state_before_snapshot.incoming_damage_reduction,
                     pending_damage=state_before_snapshot.pending_damage,
+                    display_name=state_before_snapshot.display_name,
                 )
                 self.logger.log_action_executed(
                     turn_number=turn_number,
