@@ -271,11 +271,12 @@ class ItemParser:
         await self.session.flush()
 
         # Create condition based on item slot
-        # Attack items trigger on PRE_ATTACK, defense on PRE_DAMAGE, misc on PRE_ATTACK
-        # (misc triggers at same time as attack since it's an active action)
+        # All item effects trigger on PRE_ATTACK when the item is used as an action.
+        # Defense items add armor stacks at PRE_ATTACK, then world rules convert
+        # those stacks to damage reduction at PRE_DAMAGE when damage occurs.
         phase_map = {
             "attack": "pre_attack",
-            "defense": "pre_damage",
+            "defense": "pre_attack",
             "misc": "pre_attack",
         }
         phase = phase_map.get(item_slot, "pre_attack")

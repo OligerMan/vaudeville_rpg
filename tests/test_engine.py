@@ -1423,3 +1423,295 @@ class TestMultiTurnDuelScenarios:
         assert state2.current_hp == 0
         # Current implementation returns None for draws
         assert result.winner_participant_id is None
+
+
+class TestDefenseItemWithArmor:
+    """Tests for defense items adding armor and world rules reducing damage.
+
+    This tests the full combat flow:
+    1. Player uses DEFENSE action
+    2. Defense item adds armor stacks at PRE_ATTACK
+    3. Enemy attack deals damage, triggering PRE_DAMAGE interrupt
+    4. Armor world rule converts stacks to damage reduction
+    """
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        from vaudeville_rpg.db.models.enums import ItemSlot
+        from vaudeville_rpg.engine.turn import ItemData
+
+        self.resolver = TurnResolver()
+        self.ItemSlot = ItemSlot
+        self.ItemData = ItemData
+
+    def _create_combat_state(
+        self,
+        player_id: int,
+        participant_id: int,
+        hp: int = 100,
+        stacks: dict | None = None,
+        display_name: str = "",
+    ) -> CombatState:
+        """Helper to create combat state."""
+        return CombatState(
+            player_id=player_id,
+            participant_id=participant_id,
+            current_hp=hp,
+            max_hp=100,
+            current_special_points=50,
+            max_special_points=50,
+            attribute_stacks=stacks.copy() if stacks else {},
+            display_name=display_name or f"Player{player_id}",
+        )
+
+    def _create_context(
+        self,
+        state1: CombatState,
+        state2: CombatState,
+        turn: int = 1,
+    ) -> DuelContext:
+        """Helper to create duel context."""
+        return DuelContext(
+            duel_id=1,
+            setting_id=1,
+            current_turn=turn,
+            states={state1.participant_id: state1, state2.participant_id: state2},
+        )
+
+    def test_defense_item_adds_armor_before_attack_damage(self):
+        """Test that defense item adds armor at PRE_ATTACK, before attack damage triggers PRE_DAMAGE."""
+        # Player 1 (attacker): 100 HP
+        # Player 2 (defender): 100 HP, will use defense
+        state1 = self._create_combat_state(1, 10, hp=100, display_name="Attacker")
+        state2 = self._create_combat_state(2, 20, hp=100, display_name="Defender")
+        context = self._create_context(state1, state2)
+
+        # Attack item effect: deals 20 damage at PRE_ATTACK
+        attack_item_effect = EffectData(
+            id=1,
+            name="sword_attack",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.ENEMY,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="attack",
+            action_data={"value": 20},
+            owner_participant_id=10,
+            item_name="Sword",
+        )
+
+        # Defense item effect: adds 3 armor stacks at PRE_ATTACK
+        # This is the fix - defense items now trigger at PRE_ATTACK, not PRE_DAMAGE
+        defense_item_effect = EffectData(
+            id=2,
+            name="shield_armor",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.SELF,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="add_stacks",
+            action_data={"value": 3, "attribute": "armor"},
+            owner_participant_id=20,
+            item_name="Shield",
+        )
+
+        # Armor world rule: reduces incoming damage at PRE_DAMAGE
+        armor_reduction_rule = EffectData(
+            id=3,
+            name="armor_reduction",
+            condition_type=ConditionType.AND,
+            condition_data={"condition_ids": [101, 102]},
+            target=TargetType.SELF,
+            category=EffectCategory.WORLD_RULE,
+            action_type="reduce_incoming_damage",
+            action_data={"value": 2, "per_stack": True, "attribute": "armor"},
+            owner_participant_id=0,  # World rules apply to everyone
+        )
+
+        # Create items
+        attack_item = self.ItemData(
+            id=1,
+            name="Sword",
+            slot=self.ItemSlot.ATTACK,
+            effects=[attack_item_effect],
+        )
+
+        defense_item = self.ItemData(
+            id=2,
+            name="Shield",
+            slot=self.ItemSlot.DEFENSE,
+            effects=[defense_item_effect],
+        )
+
+        # Player items
+        participant_items = {
+            10: {self.ItemSlot.ATTACK: attack_item},
+            20: {self.ItemSlot.DEFENSE: defense_item},
+        }
+
+        # World rules with armor_reduction
+        world_rules = [armor_reduction_rule]
+
+        # Conditions for AND resolution
+        all_conditions = {
+            101: (ConditionType.PHASE, {"phase": "pre_damage"}),
+            102: (ConditionType.HAS_STACKS, {"attribute": "armor", "min_count": 1}),
+        }
+
+        # Actions: Player 1 attacks, Player 2 defends
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.ATTACK),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.DEFENSE),
+        ]
+
+        # Resolve combat
+        result = self.resolver.resolve_turn(context, actions, world_rules, participant_items, all_conditions)
+
+        # Verify:
+        # 1. Player 2 should have armor stacks (added at PRE_ATTACK by defense item)
+        assert state2.get_stacks("armor") == 3, f"Expected 3 armor stacks, got {state2.get_stacks('armor')}"
+
+        # 2. Player 2 should have taken reduced damage:
+        #    - Attack: 20 damage
+        #    - Armor reduction: 3 stacks * 2 = 6 reduction
+        #    - Actual damage: 20 - 6 = 14
+        #    - HP: 100 - 14 = 86
+        assert state2.current_hp == 86, f"Expected 86 HP after armor reduction, got {state2.current_hp}"
+
+        # 3. Player 1 should be unaffected
+        assert state1.current_hp == 100
+
+    def test_defense_without_armor_world_rule(self):
+        """Test that defense item adds armor stacks even without a world rule to use them."""
+        state1 = self._create_combat_state(1, 10, hp=100, display_name="Attacker")
+        state2 = self._create_combat_state(2, 20, hp=100, display_name="Defender")
+        context = self._create_context(state1, state2)
+
+        # Attack item effect: deals 20 damage
+        attack_item_effect = EffectData(
+            id=1,
+            name="sword_attack",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.ENEMY,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="attack",
+            action_data={"value": 20},
+            owner_participant_id=10,
+            item_name="Sword",
+        )
+
+        # Defense item effect: adds 3 armor stacks at PRE_ATTACK
+        defense_item_effect = EffectData(
+            id=2,
+            name="shield_armor",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.SELF,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="add_stacks",
+            action_data={"value": 3, "attribute": "armor"},
+            owner_participant_id=20,
+            item_name="Shield",
+        )
+
+        # Create items
+        attack_item = self.ItemData(
+            id=1,
+            name="Sword",
+            slot=self.ItemSlot.ATTACK,
+            effects=[attack_item_effect],
+        )
+
+        defense_item = self.ItemData(
+            id=2,
+            name="Shield",
+            slot=self.ItemSlot.DEFENSE,
+            effects=[defense_item_effect],
+        )
+
+        participant_items = {
+            10: {self.ItemSlot.ATTACK: attack_item},
+            20: {self.ItemSlot.DEFENSE: defense_item},
+        }
+
+        # No world rules (no armor reduction)
+        world_rules = []
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.ATTACK),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.DEFENSE),
+        ]
+
+        result = self.resolver.resolve_turn(context, actions, world_rules, participant_items, {})
+
+        # Armor stacks added but no reduction (no world rule)
+        assert state2.get_stacks("armor") == 3
+        # Full damage taken (no reduction)
+        assert state2.current_hp == 80  # 100 - 20 = 80
+
+    def test_attack_vs_attack_no_defense(self):
+        """Test that without defense action, no armor is added."""
+        state1 = self._create_combat_state(1, 10, hp=100, display_name="Attacker1")
+        state2 = self._create_combat_state(2, 20, hp=100, display_name="Attacker2")
+        context = self._create_context(state1, state2)
+
+        # Both players have attack items
+        attack1_effect = EffectData(
+            id=1,
+            name="sword_attack_1",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.ENEMY,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="attack",
+            action_data={"value": 15},
+            owner_participant_id=10,
+            item_name="Sword",
+        )
+
+        attack2_effect = EffectData(
+            id=2,
+            name="sword_attack_2",
+            condition_type=ConditionType.PHASE,
+            condition_data={"phase": "pre_attack"},
+            target=TargetType.ENEMY,
+            category=EffectCategory.ITEM_EFFECT,
+            action_type="attack",
+            action_data={"value": 10},
+            owner_participant_id=20,
+            item_name="Dagger",
+        )
+
+        attack_item_1 = self.ItemData(
+            id=1,
+            name="Sword",
+            slot=self.ItemSlot.ATTACK,
+            effects=[attack1_effect],
+        )
+
+        attack_item_2 = self.ItemData(
+            id=2,
+            name="Dagger",
+            slot=self.ItemSlot.ATTACK,
+            effects=[attack2_effect],
+        )
+
+        participant_items = {
+            10: {self.ItemSlot.ATTACK: attack_item_1},
+            20: {self.ItemSlot.ATTACK: attack_item_2},
+        }
+
+        actions = [
+            ParticipantAction(participant_id=10, action_type=DuelActionType.ATTACK),
+            ParticipantAction(participant_id=20, action_type=DuelActionType.ATTACK),
+        ]
+
+        result = self.resolver.resolve_turn(context, actions, [], participant_items, {})
+
+        # Both players take full damage
+        assert state1.current_hp == 90  # 100 - 10
+        assert state2.current_hp == 85  # 100 - 15
+        # No armor stacks on either player
+        assert state1.get_stacks("armor") == 0
+        assert state2.get_stacks("armor") == 0
