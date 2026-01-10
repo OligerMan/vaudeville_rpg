@@ -135,6 +135,10 @@ class WorldRulesParser:
             action_data["attribute"] = rule.action.attribute
         if rule.per_stack:
             action_data["per_stack"] = True
+            # For per_stack actions, use the requires_attribute if no attribute specified
+            # This is needed for reduce_incoming_damage which scales with armor stacks
+            if not rule.action.attribute and rule.requires_attribute:
+                action_data["attribute"] = rule.requires_attribute
 
         action = Action(
             name=f"{rule.name}_action_{unique_suffix}",
