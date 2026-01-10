@@ -267,13 +267,14 @@ class ItemParser:
         await self.session.flush()
 
         # Create condition based on item slot
-        # Attack items trigger on PRE_ATTACK, defense on PRE_DAMAGE, misc on PRE_MOVE
+        # Attack items trigger on PRE_ATTACK, defense on PRE_DAMAGE, misc on PRE_ATTACK
+        # (misc triggers at same time as attack since it's an active action)
         phase_map = {
             "attack": "pre_attack",
             "defense": "pre_damage",
-            "misc": "pre_move",
+            "misc": "pre_attack",
         }
-        phase = phase_map.get(item_slot, "pre_move")
+        phase = phase_map.get(item_slot, "pre_attack")
 
         condition = Condition(
             name=f"item_{item_id}_condition_{priority}_{unique_suffix}",
