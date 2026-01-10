@@ -200,6 +200,70 @@ class WorldRulesValidator:
 
         return result
 
+    def is_rule_valid(self, rule: WorldRuleDefinition) -> bool:
+        """Check if a single rule is valid without collecting errors.
+
+        Args:
+            rule: Rule to validate
+
+        Returns:
+            True if rule is valid, False otherwise
+        """
+        # Validate name
+        if not rule.name:
+            return False
+
+        # Validate phase
+        if rule.phase not in VALID_PHASES:
+            return False
+
+        # Validate requires_attribute
+        if not rule.requires_attribute:
+            return False
+        if self.known_attributes and rule.requires_attribute not in self.known_attributes:
+            return False
+
+        # Validate min_stacks
+        if rule.min_stacks < 1:
+            return False
+
+        # Validate target
+        if rule.target not in VALID_TARGETS:
+            return False
+
+        # Validate action
+        if not rule.action:
+            return False
+        if rule.action.action_type not in VALID_ACTION_TYPES:
+            return False
+        if rule.action.value < 0:
+            return False
+
+        # Validate attribute reference for stack operations
+        if rule.action.action_type in {"add_stacks", "remove_stacks"}:
+            if not rule.action.attribute:
+                return False
+            if self.known_attributes and rule.action.attribute not in self.known_attributes:
+                return False
+
+        return True
+
+    def filter_valid_rules(self, world_rules: GeneratedWorldRules) -> GeneratedWorldRules:
+        """Filter out invalid rules and return only valid ones.
+
+        Args:
+            world_rules: Generated world rules to filter
+
+        Returns:
+            New GeneratedWorldRules with only valid rules
+        """
+        valid_rules = [rule for rule in world_rules.rules if self.is_rule_valid(rule)]
+
+        return GeneratedWorldRules(
+            attribute_name=world_rules.attribute_name,
+            rules=valid_rules,
+        )
+
 
 class EffectTemplateValidator:
     """Validate generated effect templates."""

@@ -294,6 +294,7 @@ class SettingFactory:
     ) -> PipelineStep:
         """Step 2: Generate world rules for an attribute."""
         step = PipelineStep(name=f"generate_rules_{attr.name}", success=False, message="")
+        last_validation_errors: list[str] = []
 
         for attempt in range(max_retries + 1):
             try:
@@ -310,11 +311,14 @@ class SettingFactory:
                     validator = WorldRulesValidator(known_attributes)
                     validation = validator.validate(generated)
                     if not validation.valid:
-                        step.validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
-                        if retry and attempt < max_retries:
+                        last_validation_errors = [f"{e.field}: {e.message}" for e in validation.errors]
+                        # Silently retry without showing error
+                        if attempt < max_retries:
                             await asyncio.sleep(self.settings.llm_retry_delay)
                             continue
-                        step.message = f"Validation failed: {step.validation_errors}"
+                        # Only show error after all retries exhausted
+                        step.validation_errors = last_validation_errors
+                        step.message = f"Validation failed after {max_retries + 1} attempts"
                         return step
 
                 step.success = True
@@ -323,10 +327,11 @@ class SettingFactory:
                 return step
 
             except Exception as e:
-                step.message = f"Generation failed: {e!s}"
+                # Silently retry on exceptions too
                 if attempt < max_retries:
                     await asyncio.sleep(self.settings.llm_retry_delay)
                     continue
+                step.message = f"Generation failed after {max_retries + 1} attempts: {e!s}"
                 return step
 
         return step
