@@ -1061,4 +1061,4 @@ Item effects trigger during combat phases when the item is used:
 
 **Note:** All item effects trigger during the **combat phase** (PRE_ATTACK), not PRE_MOVE. PRE_MOVE only processes world rules (passive effects like poison damage) before players submit their actions.
 
-For damage reduction effects (armor), use PRE_DAMAGE as an interrupt condition - this triggers automatically whenever damage is about to be applied.
+**Armor Mechanic:** Defense items add armor stacks at PRE_ATTACK (when the defend action is used). The armor **world rule** then uses PRE_DAMAGE as an interrupt condition to convert those stacks into damage reduction when damage is about to be applied. This two-step process ensures armor is set up before damage events occur.
