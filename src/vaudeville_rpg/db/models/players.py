@@ -72,6 +72,9 @@ class PlayerCombatState(Base, TimestampMixin):
     # Current attribute stacks (e.g., {"poison": 3, "armor": 2})
     attribute_stacks: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
 
+    # Fresh stacks added this turn (not eligible for passive decay at POST_MOVE)
+    fresh_stacks: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+
     # Relationships
     player: Mapped["Player"] = relationship("Player", back_populates="combat_states")
     duel: Mapped["Duel"] = relationship("Duel", back_populates="combat_states")

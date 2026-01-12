@@ -205,9 +205,23 @@ class ActionExecutor:
         context: ActionContext,
         effect_name: str,
     ) -> EffectResult:
-        """Remove stacks of an attribute from the target."""
+        """Remove stacks of an attribute from the target.
+
+        At POST_MOVE phase (passive decay), only non-fresh stacks are removed.
+        Fresh stacks (added this turn) are protected from passive decay.
+        """
+        from ..db.models.enums import ConditionPhase
+
         attribute = action_data.get("attribute", "")
         value = action_data.get("value", 0)
+
+        # At POST_MOVE (passive decay), only remove non-fresh stacks
+        if context.phase == ConditionPhase.POST_MOVE:
+            current = context.target_state.get_stacks(attribute)
+            fresh = context.target_state.fresh_stacks.get(attribute, 0)
+            decayable = current - fresh
+            value = min(value, max(0, decayable))
+
         actual = context.target_state.remove_stacks(attribute, value)
         return EffectResult(
             effect_name=effect_name,
