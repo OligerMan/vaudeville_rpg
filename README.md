@@ -147,19 +147,24 @@ python -m vaudeville_rpg
 For running with a local LLM instead of cloud APIs:
 
 ```bash
-# Start vLLM server (requires NVIDIA GPU)
+# Start vLLM server (requires NVIDIA GPU with 8GB+ VRAM)
 docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest \
-  --model Qwen/Qwen2.5-7B-Instruct-AWQ \
+  --model Qwen/Qwen3-4B-Instruct-2507 \
   --gpu-memory-utilization 0.9 \
   --max-model-len 4096
 ```
+
+**Notes:**
+- Requires Docker Desktop with WSL2 backend + GPU support
+- First run downloads the model from HuggingFace
+- Wait for "Uvicorn running on http://0.0.0.0:8000" before starting the bot
 
 Update `.env`:
 ```env
 LLM_PROVIDER=openai
 LLM_BASE_URL=http://localhost:8000/v1
 LLM_API_KEY=dummy
-LLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
+LLM_MODEL=Qwen/Qwen3-4B-Instruct-2507
 ```
 
 ---

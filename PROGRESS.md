@@ -29,8 +29,8 @@ This file tracks development progress to restore context between sessions.
 - [x] Telegram UI/UX improvements (auto-welcome, improved help, setting checks)
 - [x] Database persistence tests with PostgreSQL
 - [x] Enemy balancing (Easy difficulty now beatable)
+- [x] Local LLM setup with vLLM (Qwen3-4B-Instruct-2507 via Docker)
 - [ ] Balance tuning (ongoing)
-- [ ] Local LLM setup with vLLM (in progress)
 
 ---
 
@@ -306,45 +306,6 @@ ConditionEvaluator + ActionExecutor
 ---
 
 ## Next Steps
-
-### Immediate: vLLM Local LLM Setup
-
-**Hardware:** NVIDIA RTX 3070 Ti (8GB VRAM)
-**Model:** `Qwen/Qwen2.5-7B-Instruct-AWQ` (AWQ quantized, fits 8GB)
-
-#### Step 1: Start vLLM with Docker (Windows)
-
-```powershell
-docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest --model Qwen/Qwen2.5-7B-Instruct-AWQ --gpu-memory-utilization 0.9 --max-model-len 4096
-```
-
-**Notes:**
-- First run downloads ~4GB model from HuggingFace
-- Requires Docker Desktop with WSL2 backend + GPU support
-- Wait for "Uvicorn running on http://0.0.0.0:8000"
-
-#### Step 2: Verify Connection
-
-```bash
-curl http://localhost:8000/v1/models
-```
-
-#### Step 3: Start Bot
-
-```bash
-.venv/Scripts/python -m vaudeville_rpg
-```
-
-#### Current .env Configuration (already set)
-
-```
-LLM_PROVIDER=openai
-LLM_BASE_URL=http://localhost:8000/v1
-LLM_API_KEY=dummy
-LLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
-```
-
----
 
 ### Remaining Phase 5 Tasks
 
