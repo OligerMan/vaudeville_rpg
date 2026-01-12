@@ -7,8 +7,8 @@ This file tracks development progress to restore context between sessions.
 ## Current State
 
 **Branch:** `master`
-**Last Updated:** 2026-01-07
-**Last Commit:** UX improvements - setting checks, auto-welcome, improved /start and /help
+**Last Updated:** 2026-01-13
+**Last Commit:** Fresh stacks decay fix - effects don't decay on the turn they're applied
 
 ### Completed Phases
 
@@ -30,11 +30,53 @@ This file tracks development progress to restore context between sessions.
 - [x] Database persistence tests with PostgreSQL
 - [x] Enemy balancing (Easy difficulty now beatable)
 - [x] Local LLM setup with vLLM (Qwen3-4B-Instruct-2507 via Docker)
+- [x] Fresh stacks decay fix (effects don't decay on turn applied)
 - [ ] Balance tuning (ongoing)
 
 ---
 
 ## Recent Session Summary
+
+### Session: 2026-01-13
+
+**Completed:** Fresh Stacks Decay Fix
+
+#### What Was Done
+
+1. **Fresh Stacks Decay Fix** (`bugfix/fresh-stacks-decay` branch, merged):
+   - Fixed issue where 1-stack effects (poison, armor) decayed immediately before having any effect
+   - Added `fresh_stacks` tracking to `CombatState` - tracks stacks added this turn
+   - At POST_MOVE (passive decay), only non-fresh stacks are removed
+   - Active abilities at other phases can still remove any stacks
+   - Fresh stacks cleared at end of turn via `reset_turn_modifiers()`
+
+2. **Implementation Details**:
+   - Added `fresh_stacks: dict[str, int]` to `CombatState`
+   - Added `phase` field to `ActionContext` for decay logic
+   - Modified `_execute_remove_stacks()` to skip fresh stacks at POST_MOVE
+   - Added `fresh_stacks` JSONB column to `PlayerCombatState` DB model
+   - Created migration `008_add_fresh_stacks_to_combat_state.py`
+
+#### Key Files Added/Modified
+- `src/vaudeville_rpg/engine/types.py` - Added fresh_stacks, phase to ActionContext
+- `src/vaudeville_rpg/engine/actions.py` - Decay protection logic
+- `src/vaudeville_rpg/engine/effects.py` - Pass phase to ActionContext
+- `src/vaudeville_rpg/engine/duel.py` - State conversion for fresh_stacks
+- `src/vaudeville_rpg/db/models/players.py` - Added fresh_stacks column
+- `alembic/versions/008_add_fresh_stacks_to_combat_state.py` - NEW
+- `tests/test_fresh_stacks.py` - NEW (14 tests)
+
+#### Test Coverage
+- **Total tests:** 299 passing
+- New tests: 14 (fresh stacks behavior)
+
+#### Commits
+```
+1fdbcda Merge branch 'bugfix/fresh-stacks-decay' into master
+2e17b61 fix: Fresh stacks are protected from passive decay on the turn they're applied
+```
+
+---
 
 ### Session: 2026-01-07
 
