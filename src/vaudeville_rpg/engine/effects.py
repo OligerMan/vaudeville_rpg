@@ -143,6 +143,7 @@ class EffectProcessor:
                 target_state=target_state,
                 action_data=effect.action_data,
                 item_name=effect.item_name,
+                phase=phase,
             )
 
             # Execute the action

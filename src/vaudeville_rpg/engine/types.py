@@ -1,7 +1,10 @@
 """Type definitions for the duel engine."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..db.models.enums import ConditionPhase
 
 
 @dataclass
@@ -25,6 +28,9 @@ class CombatState:
     incoming_damage_reduction: int = 0
     pending_damage: int = 0
 
+    # Fresh stacks added this turn (not eligible for passive decay at POST_MOVE)
+    fresh_stacks: dict[str, int] = field(default_factory=dict)
+
     def is_alive(self) -> bool:
         """Check if the player is still alive."""
         return self.current_hp > 0
@@ -40,7 +46,11 @@ class CombatState:
         if max_stacks is not None:
             new_value = min(new_value, max_stacks)
         self.attribute_stacks[attribute] = max(0, new_value)
-        return self.attribute_stacks[attribute] - current
+        actual_added = self.attribute_stacks[attribute] - current
+        # Track fresh stacks (not eligible for passive decay this turn)
+        if actual_added > 0:
+            self.fresh_stacks[attribute] = self.fresh_stacks.get(attribute, 0) + actual_added
+        return actual_added
 
     def remove_stacks(self, attribute: str, count: int) -> int:
         """Remove stacks from an attribute. Returns actual removed."""
@@ -80,6 +90,7 @@ class CombatState:
         """Reset temporary modifiers at the end of a turn."""
         self.incoming_damage_reduction = 0
         self.pending_damage = 0
+        self.fresh_stacks.clear()  # Clear fresh stacks - they're now eligible for decay
 
 
 @dataclass
@@ -137,3 +148,4 @@ class ActionContext:
     target_state: CombatState
     action_data: dict[str, Any]
     item_name: str | None = None  # Name of item that triggered this effect (if any)
+    phase: "ConditionPhase | None" = None  # Current phase for decay logic

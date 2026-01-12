@@ -95,6 +95,7 @@ class DuelEngine:
                     current_hp=player.max_hp,
                     current_special_points=player.max_special_points,
                     attribute_stacks={},
+                    fresh_stacks={},
                 )
                 self.session.add(combat_state)
 
@@ -309,6 +310,7 @@ class DuelEngine:
                         "current_special_points": combat_states[p.player_id].current_special_points,
                         "max_special_points": p.player.max_special_points,
                         "attribute_stacks": combat_states[p.player_id].attribute_stacks,
+                        "fresh_stacks": combat_states[p.player_id].fresh_stacks,
                     }
                     if p.player_id in combat_states
                     else None,
@@ -381,13 +383,7 @@ class DuelEngine:
 
     async def _load_duel(self, duel_id: int) -> Duel | None:
         """Load a duel with its participants and their players."""
-        stmt = (
-            select(Duel)
-            .where(Duel.id == duel_id)
-            .options(
-                selectinload(Duel.participants).selectinload(DuelParticipant.player)
-            )
-        )
+        stmt = select(Duel).where(Duel.id == duel_id).options(selectinload(Duel.participants).selectinload(DuelParticipant.player))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -435,6 +431,7 @@ class DuelEngine:
                     current_special_points=db_state.current_special_points,
                     max_special_points=player.max_special_points,
                     attribute_stacks=dict(db_state.attribute_stacks),
+                    fresh_stacks=dict(db_state.fresh_stacks),
                 )
 
         return context, combat_states
@@ -454,6 +451,7 @@ class DuelEngine:
                         db_state.current_hp = state.current_hp
                         db_state.current_special_points = state.current_special_points
                         db_state.attribute_stacks = state.attribute_stacks
+                        db_state.fresh_stacks = state.fresh_stacks
 
     async def _run_pre_move(self, duel: Duel) -> PreMoveResult:
         """Run the PRE_MOVE phase of a turn.
@@ -563,6 +561,7 @@ class DuelEngine:
                     current_special_points=db_state.current_special_points,
                     max_special_points=player.max_special_points,
                     attribute_stacks=dict(db_state.attribute_stacks),
+                    fresh_stacks=dict(db_state.fresh_stacks),
                 )
 
         # Convert actions
@@ -593,6 +592,7 @@ class DuelEngine:
                         db_state.current_hp = state.current_hp
                         db_state.current_special_points = state.current_special_points
                         db_state.attribute_stacks = state.attribute_stacks
+                        db_state.fresh_stacks = state.fresh_stacks
 
         return result
 
